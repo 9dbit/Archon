@@ -371,6 +371,14 @@ async function commitWithinTx(
   assertTransition(cs.state, "COMMITTING");
   assertTransition("COMMITTING", "COMMITTED");
 
+  // Serialize commits per project: lock the project row so two approvals
+  // for the same project cannot interleave baseline reads/writes.
+  await tx
+    .select()
+    .from(projects)
+    .where(eq(projects.id, cs.projectId))
+    .for("update");
+
   // Baseline is read inside the transaction; reject stale proposals so a
   // ChangeSet validated against an older version cannot silently overwrite
   // a newer approved baseline.

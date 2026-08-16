@@ -43,18 +43,35 @@ export function interpretBriefDeterministic(text: string): BriefInterpretation {
     );
   }
 
-  // Levels "2 storey/story/levels/floors"
+  // Levels "2 storey", "10-story", "3 levels/floors"
   const levels = text.match(
-    /(\d+)\s*(?:storey|story|stories|storeys|levels?|floors?)\b/i,
+    /(\d+)[\s-]*(?:storey|story|stories|storeys|levels?|floors?)\b/i,
   );
   if (levels) brief.levels = parseInt(levels[1]!, 10);
 
-  // Floor-to-floor "3.5m floor to floor" / "floor-to-floor 3.5"
+  // Floor-to-floor: "3.5m floor to floor", "floor-to-floor 3.5m",
+  // "floor to floor heights should be 3600mm". Unit is explicit (mm|m);
+  // an omitted unit falls back to a magnitude heuristic (>100 => mm).
   const f2f =
-    text.match(/floor[\s-]*to[\s-]*floor\D{0,10}(\d+(?:\.\d+)?)\s*m?/i) ??
-    text.match(/(\d+(?:\.\d+)?)\s*m\s*floor[\s-]*to[\s-]*floor/i);
+    text.match(
+      /floor[\s-]*to[\s-]*floor\D{0,30}?(\d+(?:\.\d+)?)\s*(mm|m)?\b/i,
+    ) ?? text.match(/(\d+(?:\.\d+)?)\s*(mm|m)\s*floor[\s-]*to[\s-]*floor/i);
   if (f2f) {
-    const h = metresToMm(parseFloat(f2f[1]!));
+    const raw = parseFloat(f2f[1]!);
+    const unit = f2f[2]?.toLowerCase();
+    const h =
+      unit === "mm"
+        ? Math.round(raw)
+        : unit === "m"
+          ? metresToMm(raw)
+          : raw > 100
+            ? Math.round(raw)
+            : metresToMm(raw);
+    if (!unit) {
+      assumptions.push(
+        `Floor-to-floor value ${raw} had no unit; interpreted as ${raw > 100 ? "millimetres" : "metres"}.`,
+      );
+    }
     brief.floorToFloorHeightsMm = Array.from(
       { length: brief.levels ?? 1 },
       () => h,
