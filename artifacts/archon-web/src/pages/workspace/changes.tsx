@@ -7,6 +7,7 @@ import {
   useRejectChangeSet,
   useChangeSetPreview,
   useUpdateCheck,
+  useUpdateChangeSet,
 } from "@/hooks/use-change-sets";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +24,7 @@ import {
   Info,
   Play,
   MessageSquare,
+  Pencil,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -42,10 +44,15 @@ function ChangeSetDetail({
   const approve = useApproveChangeSet(id, projectId);
   const reject = useRejectChangeSet(id, projectId);
   const updateCheck = useUpdateCheck(id);
+  const updateOps = useUpdateChangeSet(id, projectId);
 
   const [reviewerNote, setReviewerNote] = useState("");
   const [activeCheckId, setActiveCheckId] = useState<string | null>(null);
   const [checkNote, setCheckNote] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [opsDraft, setOpsDraft] = useState("");
+  const [summaryDraft, setSummaryDraft] = useState("");
+  const [opsError, setOpsError] = useState<string | null>(null);
 
   if (isLoading)
     return (
@@ -92,6 +99,44 @@ function ChangeSetDetail({
 
   const isPending = validate.isPending || approve.isPending || reject.isPending;
 
+  const isEditable = [
+    "PROPOSED",
+    "DRAFT",
+    "NEEDS_REVIEW",
+    "VALIDATION_FAILED",
+  ].includes(changeSet.state);
+  const startEditing = () => {
+    setOpsDraft(JSON.stringify(changeSet.operations ?? [], null, 2));
+    setSummaryDraft(changeSet.intentSummary ?? "");
+    setOpsError(null);
+    setEditing(true);
+  };
+  const handleSaveOps = () => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(opsDraft);
+    } catch {
+      setOpsError("Operations must be valid JSON.");
+      return;
+    }
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      setOpsError("Operations must be a non-empty JSON array.");
+      return;
+    }
+    setOpsError(null);
+    updateOps.mutate(
+      {
+        operations: parsed,
+        intentSummary: summaryDraft || undefined,
+        actor: "user-1",
+      },
+      {
+        onSuccess: () => setEditing(false),
+        onError: (e) => setOpsError(e.message),
+      },
+    );
+  };
+
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
       <div className="flex items-center gap-4">
@@ -123,26 +168,99 @@ function ChangeSetDetail({
                 <GitPullRequest className="w-4 h-4 text-primary" />
                 Operations
               </CardTitle>
-              <Badge variant="secondary" className="font-mono">
-                {changeSet.operations?.length || 0} ops
-              </Badge>
+              <div className="flex items-center gap-2">
+                {isEditable && !editing && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1.5 text-xs"
+                    onClick={startEditing}
+                    data-testid="button-edit-operations"
+                  >
+                    <Pencil className="w-3 h-3" />
+                    Edit Operations
+                  </Button>
+                )}
+                <Badge variant="secondary" className="font-mono">
+                  {changeSet.operations?.length || 0} ops
+                </Badge>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="divide-y divide-border">
-                {changeSet.operations?.map((op: any, i: number) => (
-                  <div key={i} className="p-4 flex gap-4 overflow-hidden">
-                    <Badge
-                      variant="outline"
-                      className="h-6 shrink-0 font-mono text-[10px] text-primary border-primary/30 bg-primary/5"
-                    >
-                      {op.type}
-                    </Badge>
-                    <div className="flex-1 min-w-0 font-mono text-[11px] bg-muted/30 p-2 rounded text-muted-foreground overflow-x-auto">
-                      <pre>{JSON.stringify(op, null, 2)}</pre>
-                    </div>
+              {editing ? (
+                <div className="p-4 space-y-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase">
+                      Intent Summary
+                    </label>
+                    <Input
+                      value={summaryDraft}
+                      onChange={(e) => setSummaryDraft(e.target.value)}
+                      className="text-sm"
+                      data-testid="input-intent-summary"
+                    />
                   </div>
-                ))}
-              </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase">
+                      Operations (JSON)
+                    </label>
+                    <Textarea
+                      value={opsDraft}
+                      onChange={(e) => setOpsDraft(e.target.value)}
+                      className="font-mono text-[11px] min-h-[260px]"
+                      data-testid="textarea-operations"
+                    />
+                  </div>
+                  {opsError && (
+                    <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md border border-destructive/20 flex gap-2">
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{opsError}</span>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Saving an edit returns this proposal to PROPOSED — it must
+                    pass validation again before it can be approved.
+                  </p>
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEditing(false)}
+                      disabled={updateOps.isPending}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleSaveOps}
+                      disabled={updateOps.isPending}
+                      data-testid="button-save-operations"
+                    >
+                      {updateOps.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        "Save Changes"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {changeSet.operations?.map((op: any, i: number) => (
+                    <div key={i} className="p-4 flex gap-4 overflow-hidden">
+                      <Badge
+                        variant="outline"
+                        className="h-6 shrink-0 font-mono text-[10px] text-primary border-primary/30 bg-primary/5"
+                      >
+                        {op.type}
+                      </Badge>
+                      <div className="flex-1 min-w-0 font-mono text-[11px] bg-muted/30 p-2 rounded text-muted-foreground overflow-x-auto">
+                        <pre>{JSON.stringify(op, null, 2)}</pre>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -203,7 +321,7 @@ function ChangeSetDetail({
                           )}
 
                           <div>
-                            <p className="font-medium text-sm flex items-center gap-2">
+                            <div className="font-medium text-sm flex items-center gap-2">
                               {chk.category}
                               <Badge
                                 variant="outline"
@@ -211,7 +329,7 @@ function ChangeSetDetail({
                               >
                                 {chk.severity}
                               </Badge>
-                            </p>
+                            </div>
                             <p className="text-sm text-muted-foreground mt-1">
                               {chk.evidence}
                             </p>

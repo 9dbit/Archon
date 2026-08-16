@@ -158,6 +158,70 @@ describe("ARCHON Phase 0 API", () => {
     expect(detail.body.approved.versionNumber).toBe(0);
   });
 
+  // 5b. Review/Edit correction path: interpret -> propose -> validate fails
+  // -> PATCH edit -> revalidate -> approve -> immutable version
+  it("supports the interpret -> edit -> revalidate -> approve correction cycle", async () => {
+    const id = await createProject(`T5b ${Date.now()}`);
+    const interp = await request(app)
+      .post(`/api/projects/${id}/interpret-brief`)
+      .send({
+        text: "The client wants a 10-story commercial building on a 50m x 40m site. Floor to floor heights should be 3600mm. Minimum corridor width 1500mm.",
+      });
+    expect(interp.status).toBe(200);
+    expect(interp.body.brief.levels).toBe(10);
+    expect(interp.body.brief.floorToFloorHeightsMm).toEqual(
+      Array.from({ length: 10 }, () => 3600),
+    );
+
+    // Propose the interpreted brief but with a rule it violates.
+    const badBrief = {
+      ...interp.body.brief,
+      circulation: { minCorridorWidthMm: 800 },
+    };
+    const cs = await propose(id, [
+      { type: "UPSERT_BRIEF", brief: badBrief },
+      { type: "UPSERT_RULE", rule: circulationRule },
+    ]);
+    const v1 = await request(app)
+      .post(`/api/change-sets/${cs}/validate`)
+      .send({});
+    expect(v1.body.state).toBe("VALIDATION_FAILED");
+
+    // Edit the operations to correct the proposal (the Review/Edit step).
+    const patched = await request(app)
+      .patch(`/api/change-sets/${cs}`)
+      .send({
+        operations: [
+          { type: "UPSERT_BRIEF", brief: interp.body.brief },
+          { type: "UPSERT_RULE", rule: circulationRule },
+        ],
+        intentSummary: "Corrected corridor width after failed validation",
+        actor: "editor",
+      });
+    expect(patched.status).toBe(200);
+    expect(patched.body.state).toBe("PROPOSED");
+
+    // Edits must pass validation again before approval is possible.
+    const earlyApprove = await request(app)
+      .post(`/api/change-sets/${cs}/approve`)
+      .send({});
+    expect(earlyApprove.status).toBe(409);
+
+    const v2 = await request(app)
+      .post(`/api/change-sets/${cs}/validate`)
+      .send({});
+    expect(v2.body.state).toBe("NEEDS_REVIEW");
+
+    const approve = await request(app)
+      .post(`/api/change-sets/${cs}/approve`)
+      .send({ reviewer: "editor" });
+    expect(approve.status).toBe(200);
+    expect(approve.body.changeSet.state).toBe("COMMITTED");
+    const detail = await request(app).get(`/api/projects/${id}`);
+    expect(detail.body.approved.versionNumber).toBe(1);
+    expect(detail.body.approved.snapshot.brief.levels).toBe(10);
+  });
+
   // 6. Approve + commit is transactional, versioned, audited, idempotent
   it("commits an approved ChangeSet into an immutable version, idempotently", async () => {
     const id = await createProject(`T6 ${Date.now()}`);

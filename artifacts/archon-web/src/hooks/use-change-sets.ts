@@ -56,6 +56,37 @@ export function useCreateChangeSet(projectId: string) {
   });
 }
 
+export function useUpdateChangeSet(changeSetId: string, projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: {
+      operations: unknown[];
+      intentSummary?: string;
+      actor: string;
+    }) => {
+      const res = await fetch(`/api/change-sets/${changeSetId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ?? "Failed to update change set");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["change-sets", changeSetId] });
+      queryClient.invalidateQueries({
+        queryKey: ["change-sets", changeSetId, "preview"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["projects", projectId, "change-sets"],
+      });
+    },
+  });
+}
+
 export function useValidateChangeSet(changeSetId: string) {
   const queryClient = useQueryClient();
   return useMutation({
