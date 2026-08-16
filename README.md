@@ -64,7 +64,12 @@ The web dev server proxies `/api/*` to `http://localhost:3001`.
 ```bash
 pnpm run lint          # prettier --check (fix with: pnpm run format)
 pnpm -r run typecheck  # tsc across all packages
-pnpm -r run test       # 20 domain unit tests + 11 API integration tests
+pnpm -r run test       # 20 domain unit tests + 14 API integration tests
+
+# Browser E2E (requires both dev servers running; Playwright chromium via
+# `pnpm --filter @workspace/archon-web exec playwright install chromium`,
+# or set PW_CHROMIUM_PATH to a system Chromium on NixOS hosts)
+pnpm --filter @workspace/archon-web run test:e2e
 ```
 
 The API integration tests require `DATABASE_URL` and fail loudly (never skip) if it is missing. CI configuration lives in `.github/workflows/ci.yml` (lint, typecheck, migrate, and tests against a Postgres 16 service container).

@@ -125,7 +125,13 @@ export function useApproveChangeSet(changeSetId: string, projectId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["change-sets", changeSetId] });
-      queryClient.invalidateQueries({ queryKey: ["projects", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+      queryClient.invalidateQueries({
+        queryKey: ["projects", projectId, "change-sets"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["projects", projectId, "versions"],
+      });
     },
   });
 }
