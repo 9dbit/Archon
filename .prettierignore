@@ -1,0 +1,12 @@
+node_modules
+dist
+*.tsbuildinfo
+.vite
+.cache
+.local
+.agents
+pnpm-lock.yaml
+lib/db/migrations
+docs
+artifacts/mockup-sandbox
+artifacts/archon-web/src/components/ui

@@ -1,0 +1,515 @@
+/**
+ * Contract-mandated integration tests (docs/05 §12) against the real database.
+ * DB tests are never skipped: missing DATABASE_URL fails the suite loudly.
+ */
+import { beforeAll, afterAll, describe, expect, it } from "vitest";
+import request from "supertest";
+import type { Express } from "express";
+import type { BriefInput, RuleInput } from "@workspace/domain";
+
+if (!process.env.DATABASE_URL) {
+  throw new Error(
+    "DATABASE_URL is required for integration tests — DB tests must never be silently skipped.",
+  );
+}
+
+let app: Express;
+let pool: { end: () => Promise<void> };
+
+const goodBrief: BriefInput = {
+  siteWidthMm: 20000,
+  siteDepthMm: 30000,
+  levels: 2,
+  floorToFloorHeightsMm: [3500, 3200],
+  circulation: { minCorridorWidthMm: 1200 },
+  doorStandards: { widthMm: 900, heightMm: 2100 },
+  windowStandards: { sillMm: 900, headMm: 2400 },
+  lengthUnit: "mm",
+};
+
+const circulationRule: RuleInput = {
+  code: "CIRC-MIN-WIDTH",
+  category: "circulation",
+  description: "Corridors must be at least 1000 mm wide",
+  subject: "corridorWidthMm",
+  operator: ">=",
+  expectedValue: 1000,
+  unit: "mm",
+  sourceType: "REGULATION",
+  sourceReference: "Local building code §4.2",
+  severity: "BLOCKER",
+  active: true,
+};
+
+beforeAll(async () => {
+  const { createApp } = await import("../src/app");
+  const dbModule = await import("@workspace/db");
+  app = createApp();
+  pool = dbModule.pool;
+});
+
+afterAll(async () => {
+  await pool.end();
+});
+
+async function createProject(name: string): Promise<string> {
+  const res = await request(app)
+    .post("/api/projects")
+    .send({ name, buildingType: "restaurant", actor: "test" });
+  expect(res.status).toBe(201);
+  return res.body.id as string;
+}
+
+async function propose(
+  projectId: string,
+  operations: unknown[],
+  intentSummary = "test changeset",
+): Promise<string> {
+  const res = await request(app)
+    .post(`/api/projects/${projectId}/change-sets`)
+    .send({
+      intentSummary,
+      operations,
+      affectedDomains: ["geometry", "rules"],
+      createdBy: "test",
+    });
+  expect(res.status).toBe(201);
+  expect(res.body.state).toBe("PROPOSED");
+  return res.body.id as string;
+}
+
+describe("ARCHON Phase 0 API", () => {
+  // 1. Project creation
+  it("creates a project and lists it", async () => {
+    const id = await createProject(`T1 ${Date.now()}`);
+    const detail = await request(app).get(`/api/projects/${id}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.project.id).toBe(id);
+    expect(detail.body.approved.versionNumber).toBe(0);
+  });
+
+  // 2. Brief interpretation is deterministic and does not persist
+  it("interprets a brief deterministically without persisting", async () => {
+    const id = await createProject(`T2 ${Date.now()}`);
+    const text =
+      "Restaurant on a 20m x 30m site, 2 storeys, floor to floor 3.5m, corridors min 1.2m, with dining and kitchen";
+    const a = await request(app)
+      .post(`/api/projects/${id}/interpret-brief`)
+      .send({ text });
+    const b = await request(app)
+      .post(`/api/projects/${id}/interpret-brief`)
+      .send({ text });
+    expect(a.status).toBe(200);
+    expect(a.body.providerId).toBe("deterministic-mock-v1");
+    expect(a.body.persisted).toBe(false);
+    expect(a.body.brief).toEqual(b.body.brief);
+    expect(a.body.brief.siteWidthMm).toBe(20000);
+    expect(a.body.brief.circulation.minCorridorWidthMm).toBe(1200);
+    const detail = await request(app).get(`/api/projects/${id}`);
+    expect(detail.body.brief).toBeNull();
+  });
+
+  // 3. Proposing a ChangeSet never touches authoritative state
+  it("keeps authoritative state untouched while a ChangeSet is only proposed", async () => {
+    const id = await createProject(`T3 ${Date.now()}`);
+    await propose(id, [{ type: "UPSERT_BRIEF", brief: goodBrief }]);
+    const detail = await request(app).get(`/api/projects/${id}`);
+    expect(detail.body.brief).toBeNull();
+    expect(detail.body.rules).toEqual([]);
+    expect(detail.body.approved.versionNumber).toBe(0);
+  });
+
+  // 4. Validation produces provenance-carrying checks; clean pass -> NEEDS_REVIEW
+  it("validates a clean ChangeSet into NEEDS_REVIEW with evidence-bearing checks", async () => {
+    const id = await createProject(`T4 ${Date.now()}`);
+    const cs = await propose(id, [
+      { type: "UPSERT_BRIEF", brief: goodBrief },
+      { type: "UPSERT_RULE", rule: circulationRule },
+    ]);
+    const res = await request(app)
+      .post(`/api/change-sets/${cs}/validate`)
+      .send({ actor: "test" });
+    expect(res.status).toBe(200);
+    expect(res.body.state).toBe("NEEDS_REVIEW");
+    expect(res.body.checks.length).toBeGreaterThan(0);
+    for (const check of res.body.checks) {
+      expect(check.sourceType).toBeTruthy();
+      expect(check.evidence.length).toBeGreaterThan(0);
+    }
+  });
+
+  // 5. Blocking validation failure prevents approval
+  it("routes blocking violations to VALIDATION_FAILED and refuses approval", async () => {
+    const id = await createProject(`T5 ${Date.now()}`);
+    const badBrief = { ...goodBrief, circulation: { minCorridorWidthMm: 800 } };
+    const cs = await propose(id, [
+      { type: "UPSERT_BRIEF", brief: badBrief },
+      { type: "UPSERT_RULE", rule: circulationRule },
+    ]);
+    const v = await request(app)
+      .post(`/api/change-sets/${cs}/validate`)
+      .send({});
+    expect(v.body.state).toBe("VALIDATION_FAILED");
+    const approve = await request(app)
+      .post(`/api/change-sets/${cs}/approve`)
+      .send({});
+    expect(approve.status).toBe(409);
+    const detail = await request(app).get(`/api/projects/${id}`);
+    expect(detail.body.approved.versionNumber).toBe(0);
+  });
+
+  // 5b. Review/Edit correction path: interpret -> propose -> validate fails
+  // -> PATCH edit -> revalidate -> approve -> immutable version
+  it("supports the interpret -> edit -> revalidate -> approve correction cycle", async () => {
+    const id = await createProject(`T5b ${Date.now()}`);
+    const interp = await request(app)
+      .post(`/api/projects/${id}/interpret-brief`)
+      .send({
+        text: "The client wants a 10-story commercial building on a 50m x 40m site. Floor to floor heights should be 3600mm. Minimum corridor width 1500mm.",
+      });
+    expect(interp.status).toBe(200);
+    expect(interp.body.brief.levels).toBe(10);
+    expect(interp.body.brief.floorToFloorHeightsMm).toEqual(
+      Array.from({ length: 10 }, () => 3600),
+    );
+
+    // Propose the interpreted brief but with a rule it violates.
+    const badBrief = {
+      ...interp.body.brief,
+      circulation: { minCorridorWidthMm: 800 },
+    };
+    const cs = await propose(id, [
+      { type: "UPSERT_BRIEF", brief: badBrief },
+      { type: "UPSERT_RULE", rule: circulationRule },
+    ]);
+    const v1 = await request(app)
+      .post(`/api/change-sets/${cs}/validate`)
+      .send({});
+    expect(v1.body.state).toBe("VALIDATION_FAILED");
+
+    // Edit the operations to correct the proposal (the Review/Edit step).
+    const patched = await request(app)
+      .patch(`/api/change-sets/${cs}`)
+      .send({
+        operations: [
+          { type: "UPSERT_BRIEF", brief: interp.body.brief },
+          { type: "UPSERT_RULE", rule: circulationRule },
+        ],
+        intentSummary: "Corrected corridor width after failed validation",
+        actor: "editor",
+      });
+    expect(patched.status).toBe(200);
+    expect(patched.body.state).toBe("PROPOSED");
+
+    // Edits must pass validation again before approval is possible.
+    const earlyApprove = await request(app)
+      .post(`/api/change-sets/${cs}/approve`)
+      .send({});
+    expect(earlyApprove.status).toBe(409);
+
+    const v2 = await request(app)
+      .post(`/api/change-sets/${cs}/validate`)
+      .send({});
+    expect(v2.body.state).toBe("NEEDS_REVIEW");
+
+    const approve = await request(app)
+      .post(`/api/change-sets/${cs}/approve`)
+      .send({ reviewer: "editor" });
+    expect(approve.status).toBe(200);
+    expect(approve.body.changeSet.state).toBe("COMMITTED");
+    const detail = await request(app).get(`/api/projects/${id}`);
+    expect(detail.body.approved.versionNumber).toBe(1);
+    expect(detail.body.approved.snapshot.brief.levels).toBe(10);
+  });
+
+  // 6. Approve + commit is transactional, versioned, audited, idempotent
+  it("commits an approved ChangeSet into an immutable version, idempotently", async () => {
+    const id = await createProject(`T6 ${Date.now()}`);
+    const cs = await propose(id, [
+      { type: "UPSERT_BRIEF", brief: goodBrief },
+      { type: "UPSERT_RULE", rule: circulationRule },
+    ]);
+    await request(app).post(`/api/change-sets/${cs}/validate`).send({});
+    const approve = await request(app)
+      .post(`/api/change-sets/${cs}/approve`)
+      .send({ reviewer: "test-reviewer" });
+    expect(approve.status).toBe(200);
+    expect(approve.body.changeSet.state).toBe("COMMITTED");
+    const versionId = approve.body.version.id;
+    expect(approve.body.version.versionNumber).toBe(1);
+
+    const detail = await request(app).get(`/api/projects/${id}`);
+    expect(detail.body.project.currentApprovedVersionId).toBe(versionId);
+    expect(detail.body.brief.brief.siteWidthMm).toBe(20000);
+    expect(detail.body.rules).toHaveLength(1);
+
+    // Idempotent re-approval/commit does not create a second version.
+    const again = await request(app)
+      .post(`/api/change-sets/${cs}/approve`)
+      .send({});
+    expect(again.status).toBe(409); // COMMITTED cannot be re-approved
+    const versions = await request(app).get(`/api/projects/${id}/versions`);
+    expect(versions.body).toHaveLength(1);
+
+    const audit = await request(app).get(`/api/projects/${id}/audit-events`);
+    const events = audit.body.map((e: { eventType: string }) => e.eventType);
+    expect(events).toContain("CHANGE_SET_PROPOSED");
+    expect(events).toContain("CHANGE_SET_VALIDATED");
+    expect(events).toContain("CHANGE_SET_APPROVED");
+    expect(events).toContain("VERSION_COMMITTED");
+  });
+
+  // 6b. Stale-base ChangeSets cannot overwrite a newer approved baseline
+  it("refuses to commit a ChangeSet whose base version is stale", async () => {
+    const id = await createProject(`T6b ${Date.now()}`);
+    // Two proposals, both based on version 0.
+    const cs1 = await propose(id, [{ type: "UPSERT_BRIEF", brief: goodBrief }]);
+    const cs2 = await propose(id, [
+      { type: "UPSERT_BRIEF", brief: { ...goodBrief, targetGfaSqm: 999 } },
+    ]);
+    // Validate both against version 0, then commit cs1 (creates v1).
+    await request(app).post(`/api/change-sets/${cs2}/validate`).send({});
+    await request(app).post(`/api/change-sets/${cs1}/validate`).send({});
+    const first = await request(app)
+      .post(`/api/change-sets/${cs1}/approve`)
+      .send({ reviewer: "test" });
+    expect(first.status).toBe(200);
+
+    // cs2 was validated against the pre-commit baseline: approval must fail,
+    // and the approved baseline must remain the version cs1 produced.
+    const second = await request(app)
+      .post(`/api/change-sets/${cs2}/approve`)
+      .send({ reviewer: "test" });
+    expect(second.status).toBe(409);
+    let detail = await request(app).get(`/api/projects/${id}`);
+    expect(detail.body.approved.versionNumber).toBe(1);
+    expect(detail.body.brief.brief.targetGfaSqm).toBe(goodBrief.targetGfaSqm);
+
+    // Correction path: re-validating rebases onto the current baseline,
+    // after which approval commits cleanly as v2.
+    await request(app).post(`/api/change-sets/${cs2}/validate`).send({});
+    const third = await request(app)
+      .post(`/api/change-sets/${cs2}/approve`)
+      .send({ reviewer: "test" });
+    expect(third.status).toBe(200);
+    expect(third.body.version.versionNumber).toBe(2);
+    detail = await request(app).get(`/api/projects/${id}`);
+    expect(detail.body.brief.brief.targetGfaSqm).toBe(999);
+  });
+
+  // 7. Illegal state transitions are rejected
+  it("rejects illegal state transitions via the API", async () => {
+    const id = await createProject(`T7 ${Date.now()}`);
+    const cs = await propose(id, [{ type: "UPSERT_BRIEF", brief: goodBrief }]);
+    // approve without validation (PROPOSED -> APPROVED is illegal)
+    const approve = await request(app)
+      .post(`/api/change-sets/${cs}/approve`)
+      .send({});
+    expect(approve.status).toBe(409);
+    // reject, then attempt to edit a terminal ChangeSet
+    const reject = await request(app)
+      .post(`/api/change-sets/${cs}/reject`)
+      .send({});
+    expect(reject.status).toBe(200);
+    expect(reject.body.state).toBe("REJECTED");
+    const patch = await request(app)
+      .patch(`/api/change-sets/${cs}`)
+      .send({ operations: [{ type: "UPSERT_BRIEF", brief: goodBrief }] });
+    expect(patch.status).toBe(409);
+  });
+
+  // 8. Canvas artifacts are non-authoritative; promotion only proposes
+  it("keeps canvas artifacts non-authoritative and promotion only creates a Proposed ChangeSet", async () => {
+    const id = await createProject(`T8 ${Date.now()}`);
+    const created = await request(app)
+      .post(`/api/projects/${id}/canvas-artifacts`)
+      .send({
+        artifact: {
+          artifactType: "concept-sketch",
+          title: "Alt A",
+          status: "ACTIVE",
+          parentArtifactIds: [],
+          sourceType: "USER_INPUT",
+          metadata: {},
+        },
+        actor: "test",
+      });
+    expect(created.status).toBe(201);
+    expect(created.body.authoritative).toBe(false);
+
+    const promoted = await request(app)
+      .post(`/api/canvas-artifacts/${created.body.id}/promote`)
+      .send({
+        operations: [{ type: "UPSERT_BRIEF", brief: goodBrief }],
+        actor: "test",
+      });
+    expect(promoted.status).toBe(201);
+    expect(promoted.body.changeSet.state).toBe("PROPOSED");
+    expect(promoted.body.changeSet.source).toBe("CANVAS_PROMOTION");
+    expect(promoted.body.artifact.promotionStatus).toBe("PROMOTION_PROPOSED");
+    expect(promoted.body.artifact.authoritative).toBe(false);
+
+    // Authoritative state untouched by promotion.
+    const detail = await request(app).get(`/api/projects/${id}`);
+    expect(detail.body.brief).toBeNull();
+    expect(detail.body.approved.versionNumber).toBe(0);
+  });
+
+  // 9. Adapter failure mode never corrupts canonical state
+  it("returns a controlled adapter failure that leaves canonical state intact", async () => {
+    const id = await createProject(`T9 ${Date.now()}`);
+    const cs = await propose(id, [{ type: "UPSERT_BRIEF", brief: goodBrief }]);
+    await request(app).post(`/api/change-sets/${cs}/validate`).send({});
+    await request(app).post(`/api/change-sets/${cs}/approve`).send({});
+
+    const adapters = await request(app).get("/api/adapters");
+    expect(adapters.status).toBe(200);
+    expect(adapters.body.length).toBeGreaterThanOrEqual(3);
+    const adapterId = adapters.body[0].id;
+
+    const before = await request(app).get(`/api/projects/${id}`);
+    const failure = await request(app)
+      .post(`/api/adapters/${adapterId}/simulate`)
+      .send({ projectId: id, mode: "failure" });
+    expect(failure.status).toBe(502);
+    expect(failure.body.result.ok).toBe(false);
+    expect(failure.body.result.error).toContain("Canonical state untouched");
+
+    const after = await request(app).get(`/api/projects/${id}`);
+    expect(after.body.brief).toEqual(before.body.brief);
+    expect(after.body.approved).toEqual(before.body.approved);
+
+    const ok = await request(app)
+      .post(`/api/adapters/${adapterId}/simulate`)
+      .send({ projectId: id, mode: "sync" });
+    expect(ok.status).toBe(200);
+    expect(ok.body.result.ok).toBe(true);
+  });
+
+  // 11. Concurrency safety: lifecycle transitions serialize under row locks
+  // and terminal states can never be overwritten.
+
+  /** Propose a clean brief ChangeSet and validate it into NEEDS_REVIEW. */
+  async function proposeReviewable(projectId: string): Promise<string> {
+    const cs = await propose(projectId, [
+      { type: "UPSERT_BRIEF", brief: goodBrief },
+    ]);
+    const v = await request(app)
+      .post(`/api/change-sets/${cs}/validate`)
+      .send({ actor: "test" });
+    expect(v.body.state).toBe("NEEDS_REVIEW");
+    return cs;
+  }
+
+  it("keeps a committed ChangeSet committed when approve and reject race", async () => {
+    const id = await createProject(`T11a ${Date.now()}`);
+    const cs = await proposeReviewable(id);
+
+    const [approveRes, rejectRes] = await Promise.all([
+      request(app)
+        .post(`/api/change-sets/${cs}/approve`)
+        .send({ reviewer: "alice" }),
+      request(app)
+        .post(`/api/change-sets/${cs}/reject`)
+        .send({ reviewer: "bob" }),
+    ]);
+
+    // Exactly one of the two racing decisions may win.
+    const winners = [approveRes, rejectRes].filter((r) => r.status < 300);
+    expect(winners.length).toBe(1);
+
+    const detail = await request(app).get(`/api/change-sets/${cs}`);
+    const finalState = detail.body.state;
+    if (approveRes.status < 300) {
+      // Approval won: the ChangeSet is COMMITTED and reject was refused.
+      expect(finalState).toBe("COMMITTED");
+      expect(rejectRes.status).toBeGreaterThanOrEqual(400);
+      const project = await request(app).get(`/api/projects/${id}`);
+      expect(project.body.approved.versionNumber).toBe(1);
+      // Audit history must not contain a contradictory rejection.
+      const audit = await request(app).get(`/api/projects/${id}/audit-events`);
+      const events = audit.body
+        .filter((e: any) => e.entityId === cs)
+        .map((e: any) => e.eventType);
+      expect(events).toContain("CHANGE_SET_APPROVED");
+      expect(events).not.toContain("CHANGE_SET_REJECTED");
+    } else {
+      expect(finalState).toBe("REJECTED");
+      const project = await request(app).get(`/api/projects/${id}`);
+      expect(project.body.approved.versionNumber).toBe(0);
+    }
+  });
+
+  it("never lets an edit mutate a ChangeSet that approval just committed", async () => {
+    const id = await createProject(`T11b ${Date.now()}`);
+    const cs = await proposeReviewable(id);
+    const original = (await request(app).get(`/api/change-sets/${cs}`)).body
+      .operations;
+
+    const editedBrief = { ...goodBrief, targetGfaSqm: 999 };
+    const [approveRes, editRes] = await Promise.all([
+      request(app)
+        .post(`/api/change-sets/${cs}/approve`)
+        .send({ reviewer: "alice" }),
+      request(app)
+        .patch(`/api/change-sets/${cs}`)
+        .send({
+          operations: [{ type: "UPSERT_BRIEF", brief: editedBrief }],
+          actor: "mallory",
+        }),
+    ]);
+
+    const detail = await request(app).get(`/api/change-sets/${cs}`);
+    const finalState = detail.body.state;
+    if (approveRes.status < 300 && finalState === "COMMITTED") {
+      // Commit won the race at the row lock: the edit must have been refused
+      // and the committed operations must be the originals.
+      expect(editRes.status).toBeGreaterThanOrEqual(400);
+      expect(detail.body.operations).toEqual(original);
+      const project = await request(app).get(`/api/projects/${id}`);
+      expect(project.body.brief.brief.targetGfaSqm).not.toBe(999);
+    } else {
+      // Edit won: ChangeSet went back to PROPOSED and approval was refused.
+      expect(editRes.status).toBeLessThan(300);
+      expect(approveRes.status).toBeGreaterThanOrEqual(400);
+      expect(finalState).toBe("PROPOSED");
+      const project = await request(app).get(`/api/projects/${id}`);
+      expect(project.body.approved.versionNumber).toBe(0);
+    }
+  });
+
+  it("refuses reject, edit, and validate on an already-committed ChangeSet", async () => {
+    const id = await createProject(`T11c ${Date.now()}`);
+    const cs = await proposeReviewable(id);
+    const approve = await request(app)
+      .post(`/api/change-sets/${cs}/approve`)
+      .send({ reviewer: "alice" });
+    expect(approve.status).toBeLessThan(300);
+
+    const [rej, edit, val] = await Promise.all([
+      request(app)
+        .post(`/api/change-sets/${cs}/reject`)
+        .send({ reviewer: "bob" }),
+      request(app)
+        .patch(`/api/change-sets/${cs}`)
+        .send({
+          operations: [{ type: "UPSERT_BRIEF", brief: goodBrief }],
+          actor: "bob",
+        }),
+      request(app)
+        .post(`/api/change-sets/${cs}/validate`)
+        .send({ actor: "bob" }),
+    ]);
+    for (const res of [rej, edit, val]) {
+      expect(res.status).toBeGreaterThanOrEqual(400);
+    }
+    const detail = await request(app).get(`/api/change-sets/${cs}`);
+    expect(detail.body.state).toBe("COMMITTED");
+    const audit = await request(app).get(`/api/projects/${id}/audit-events`);
+    const events = audit.body
+      .filter((e: any) => e.entityId === cs)
+      .map((e: any) => e.eventType);
+    expect(events).not.toContain("CHANGE_SET_REJECTED");
+    expect(events).not.toContain("CHANGE_SET_EDITED");
+  });
+});

@@ -1,0 +1,20 @@
+{
+  "name": "@workspace/root",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "prettier --check .",
+    "format": "prettier --write .",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r run test",
+    "db:generate": "pnpm --filter @workspace/db run generate",
+    "db:migrate": "pnpm --filter @workspace/db run migrate",
+    "db:seed": "pnpm --filter @workspace/engine run seed"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.0",
+    "typescript": "catalog:"
+  },
+  "packageManager": "pnpm@10.26.1"
+}

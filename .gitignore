@@ -1,0 +1,18 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.tsbuildinfo
+.vite/
+.cache/
+.agents/
+.local/
+.config/
+.upm/
+*.log
+.env
+.DS_Store
+
+# Playwright
+artifacts/archon-web/test-results/
+artifacts/archon-web/playwright-report/
+.cache/

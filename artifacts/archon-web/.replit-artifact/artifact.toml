@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "ARCHON"
+description = "ARCHON — an AI-first architecture operating system. Phase 0 web workspace: project list, Project Genesis brief flow, Canvas vs Building mode distinction, ChangeSet proposals, validation checklists with provenance, approvals, immutable version history, audit trail, and mock adapter integration health."
+version = "1.0.0"
+id = "artifacts/archon-web"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21026
+
+[services.development]
+run = "pnpm --filter @workspace/archon-web run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/archon-web", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/archon-web/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21026"
+BASE_PATH = "/"
