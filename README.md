@@ -46,8 +46,8 @@ pnpm install
 # Point at your database
 export DATABASE_URL=postgres://user:pass@localhost:5432/archon
 
-# Apply schema
-pnpm --filter @workspace/db run db:push
+# Apply schema (runs lib/db/src/migrate.ts against DATABASE_URL)
+pnpm run db:migrate
 
 # Optional: seed the "Restaurant Demo" project through the real pipeline
 pnpm run db:seed
@@ -74,10 +74,14 @@ The API integration tests require `DATABASE_URL` and fail loudly (never skip) if
 Base URL `/api`:
 
 - `POST /projects`, `GET /projects`, `GET /projects/:id` — projects with approved snapshot
-- `POST /projects/:id/interpret-brief` — deterministic brief interpretation (never persists)
-- `POST /projects/:id/change-sets`, `GET /projects/:id/change-sets` — propose/list ChangeSets
-- `GET /change-sets/:id`, `PATCH /change-sets/:id` — inspect / edit operations (returns state to PROPOSED)
-- `POST /change-sets/:id/validate | approve | reject` — governance pipeline
+- `POST /projects/:id/interpret-brief` — deterministic brief interpretation, body `{ text }` (never persists)
+- `POST /projects/:id/change-sets`, `GET /projects/:id/change-sets` — propose/list ChangeSets (`{ intentSummary, operations, affectedDomains?, source?, createdBy? }`)
+- `GET /change-sets/:id` — ChangeSet with its validation checks
+- `GET /change-sets/:id/preview` — sandboxed before/after snapshot preview
+- `PATCH /change-sets/:id` — edit operations (`{ operations, intentSummary?, affectedDomains?, actor? }`); returns state to PROPOSED
+- `POST /change-sets/:id/validate` — run the Validation Gate (`{ actor? }`)
+- `PATCH /change-sets/:id/checks/:checkId` — annotate a check (`{ reviewerNote?, waiverReason?, actor? }`)
+- `POST /change-sets/:id/approve`, `POST /change-sets/:id/reject` — review decisions (`{ reviewer?, note? }`); approval commits atomically
 - `GET /projects/:id/versions`, `GET /projects/:id/audit-events` — immutable history
 - `GET/POST /projects/:id/canvas-artifacts`, `POST /canvas-artifacts/:id/promote` — non-authoritative canvas
-- `GET /adapters`, `POST /adapters/:id/simulate-failure` — mock CAD adapters
+- `GET /adapters`, `POST /adapters/:id/simulate` — mock CAD adapters (`{ projectId, mode: "sync" | "failure" }`)
