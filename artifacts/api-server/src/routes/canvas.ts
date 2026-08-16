@@ -31,15 +31,13 @@ canvasRouter.post("/projects/:id/canvas-artifacts", async (req, res, next) => {
       .min(1)
       .default("user")
       .parse(req.body.actor ?? "user");
-    res
-      .status(201)
-      .json(
-        await createCanvasArtifact({
-          projectId: req.params.id,
-          artifact,
-          actor,
-        }),
-      );
+    res.status(201).json(
+      await createCanvasArtifact({
+        projectId: req.params.id,
+        artifact,
+        actor,
+      }),
+    );
   } catch (e) {
     next(e);
   }

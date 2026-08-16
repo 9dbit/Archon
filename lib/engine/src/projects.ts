@@ -51,9 +51,7 @@ export async function getProject(projectId: string) {
 }
 
 /** Authoritative approved baseline — the snapshot of the current approved version. */
-export async function getApprovedSnapshot(
-  projectId: string,
-): Promise<{
+export async function getApprovedSnapshot(projectId: string): Promise<{
   snapshot: CanonicalSnapshot;
   versionId: string | null;
   versionNumber: number;
