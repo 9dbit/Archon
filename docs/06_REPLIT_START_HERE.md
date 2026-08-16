@@ -1,197 +1,184 @@
-# ARCHON — Replit Start Here
+# ARCHON — Replit Start Here v0.2
 
 ## Goal
 
 Use Replit as the implementation environment while GitHub remains the code repository and review/merge history.
 
-## Step 1 — Merge the foundation documentation
+The first implementation must prove ARCHON's core architecture before real CAD/BIM integrations are added.
 
-Review the foundation PR containing:
-- build plan
-- system architecture
-- validation/approval protocol
-- API registry
-- Replit master prompt
+## Step 1 — Read the current architecture contracts
 
-Merge only when these principles are accepted, because Replit Agent is instructed to treat them as implementation contracts.
+Replit Agent must read:
+- `docs/01_BUILD_PLAN.md`
+- `docs/02_SYSTEM_ARCHITECTURE.md`
+- `docs/03_VALIDATION_APPROVAL.md`
+- `docs/04_API_REGISTRY.md`
+- `docs/05_REPLIT_MASTER_PROMPT.md`
+- `docs/07_PRODUCT_PLAN_V2.md`
+- `docs/08_UI_WORKSPACE_SPEC.md`
+- `docs/09_AI_ROUTER_DESIGN_DNA.md`
 
-## Step 2 — Import the GitHub repository into Replit
+Key principle:
+
+```text
+Canvas = exploration
+Building Model = authoritative truth
+```
+
+A concept crosses that boundary only through Promote -> Validation -> Approval.
+
+## Step 2 — Import GitHub repository
 
 Repository:
-
 `https://github.com/9dbit/Archon`
 
-Use Replit's GitHub import flow and connect the GitHub account with access to the repository.
+Use Replit GitHub import and connect the account that can access the repository.
 
-Replit official import documentation:
-https://docs.replit.com/build/import-from-providers
+Secret values must be added separately through Replit Secrets and never committed.
 
-Important: GitHub import does not copy secret values. Add secrets separately in Replit.
+## Step 3 — Use Plan mode first
 
-## Step 3 — Enable Plan mode before code generation
-
-Open Replit Agent and enable Plan mode.
-
-Paste the full contents of:
+Open Replit Agent in Plan mode and use the full contents of:
 
 `docs/05_REPLIT_MASTER_PROMPT.md`
 
-The first Agent response should be an implementation plan, not a giant code dump.
+The first output should be a plan, not a broad uncontrolled implementation.
 
-Official Replit Agent guidance:
-https://docs.replit.com/learn/build-with-agent
+## Step 4 — Verify the plan before build
 
-## Step 4 — Review the Agent plan
+Required:
+- Phase 0 + smallest Phase 1 only
+- Canvas/Building separation exists in the domain model
+- minimal CanvasArtifact foundation only
+- Canonical Model boundaries preserved
+- ChangeSet lifecycle
+- Validation Gate
+- provenance
+- explicit approval
+- immutable version/audit history
+- adapter mocks only
+- tests
+- PostgreSQL
 
-Before allowing implementation, verify the plan:
+Not allowed yet:
+- real SketchUp/Revit/AutoCAD APIs
+- full Infinite Canvas/node editor
+- full BIM/CAD generation
+- MEP/BOQ engines
+- automatic Design DNA learning
 
-- implements Phase 0 + smallest Phase 1 slice only
-- does not build real SketchUp/Revit/AutoCAD integrations yet
-- preserves Canonical Model boundaries
-- implements ChangeSet lifecycle
-- implements Validation Gate
-- implements explicit approval
-- implements version/audit history
-- includes tests
-- uses PostgreSQL rather than production filesystem persistence
+## Step 5 — Working branch
 
-If any item is missing, ask Replit Agent to revise its plan before implementation.
+Use a dedicated branch such as:
 
-## Step 5 — Git branch
+`agent/replit-phase-0-foundation`
 
-Before implementation:
+Do not implement directly on `main` and do not auto-merge.
 
-```bash
-git status -sb
-git branch --show-current
-```
-
-If working from `main`, create:
-
-```bash
-git checkout -b agent/replit-phase-0-foundation
-```
-
-Do not auto-merge to `main`.
-
-## Step 6 — Scaffold and run the application
-
-Let Agent choose the least-friction Replit-compatible TypeScript setup consistent with the master prompt.
+## Step 6 — First runnable checkpoint
 
 Required first success condition:
 - application boots
 - database connects
-- migration works
-- basic ARCHON workspace renders
+- migration succeeds
+- ARCHON workspace shell renders
+- user can clearly see Canvas Mode vs Building Mode
 
-## Step 7 — Database
+## Step 7 — Persistence
 
-Use PostgreSQL for durable application data.
+Use PostgreSQL for durable project data.
 
-Do not rely on the deployed application's local filesystem as project persistence.
-
-Replit deployment documentation:
-https://docs.replit.com/learn/projects-and-artifacts/replit-deployments
+The approved project baseline must not depend on local filesystem state.
 
 ## Step 8 — Secrets
 
-Add only secrets actually needed for the current phase.
+Only add credentials required by the current milestone.
 
-Likely later/optional:
+Optional first-phase secret:
+- `OPENAI_API_KEY`
 
-```text
-OPENAI_API_KEY
-```
+Do not add Autodesk/V-Ray/Rhino credentials yet.
 
-Do not add Autodesk, V-Ray or Rhino credentials until their integration milestone begins.
-
-Never commit secret values.
-
-## Step 9 — Build by vertical slices
-
-Recommended implementation checkpoints:
+## Step 9 — Build vertical slices
 
 ### Checkpoint A — Foundation
 - app shell
-- DB
-- domain schemas
+- database
+- typed domain schemas
+- CanvasArtifact foundation
+- CanonicalObject foundation
 - migrations
 - seed
-- health endpoint
+- health status
 
 ### Checkpoint B — Change governance
-- ChangeSet creation
-- sandbox state
+- ChangeSet
+- sandbox proposal
 - validation results
-- checklist
+- editable checklist
+- review/edit
 - approval/rejection
-- version creation
+- ProjectVersion
 - audit events
 
 ### Checkpoint C — Project Genesis
 - new project
-- natural-language brief input
+- brief input
 - structured editable brief
-- rules
-- mock/optional AI interpreter
+- project rules
+- deterministic/mock interpreter
+- optional AI interpreter behind interface
 
-### Checkpoint D — Integration boundary
+### Checkpoint D — Canvas/Building boundary
+- create/store simple CanvasArtifact
+- label artifact non-authoritative
+- promotion placeholder
+- promotion creates Proposed ChangeSet
+- no direct authoritative mutation
+
+### Checkpoint E — Integration boundary
 - adapter interface
 - SketchUp/Revit/AutoCAD mocks
-- adapter health UI
-- simulated failure/reconciliation test
+- health UI
+- simulated failure/reconciliation
 
-After each checkpoint:
-
-```text
-lint
-+ typecheck
-+ tests
-+ manual UI smoke test
-```
-
-Only commit a checkpoint when the checks pass.
-
-## Step 10 — Required manual scenario before first PR
-
-Run this scenario:
-
-1. Create Restaurant Demo project.
-2. Enter site and architecture brief.
-3. Create a circulation/door/window rule.
-4. Propose a change violating one rule.
-5. Verify ARCHON creates a BLOCKER/WARNING with provenance.
-6. Verify approved project state is unchanged.
-7. Edit the proposal.
-8. Rerun validation.
-9. Approve Commit.
-10. Verify a new immutable version exists.
-11. Simulate an adapter failure.
-12. Verify canonical approved state is not corrupted.
-
-## Step 11 — Git checkpoint and push
-
-Use small meaningful commits rather than one giant Agent commit.
-
-Example:
+After every checkpoint:
 
 ```text
-bootstrap ARCHON foundation
-implement ChangeSet validation workflow
-add Project Genesis MVP
-add adapter mock reliability tests
+lint + typecheck + tests + manual UI smoke test
 ```
 
-Push the working branch and create a draft PR.
+## Step 10 — Required manual scenario
 
-## Step 12 — Review gate before Phase 2
+1. Create Restaurant Demo.
+2. Enter site/architecture brief.
+3. Create an exploratory Canvas alternative.
+4. Verify it is explicitly non-authoritative.
+5. Promote it or a structured change as a Proposed ChangeSet.
+6. Create circulation/door/window rule.
+7. Make the proposal violate a rule.
+8. Verify BLOCKER/WARNING includes provenance.
+9. Verify approved baseline remains unchanged.
+10. Correct the proposal.
+11. Re-run validation.
+12. Approve Commit.
+13. Verify new immutable version exists.
+14. Simulate adapter failure.
+15. Verify approved canonical state is not corrupted.
 
-Do not start layout generation or real external software APIs until the first PR proves:
+## Step 11 — Git checkpoint
 
+Use small meaningful commits and push a working branch.
+Open a draft PR after checks pass.
+
+## Step 12 — Gate before next milestone
+
+Do not begin real layout generation or vendor APIs until Phase 0 proves:
+- Canvas and Building truth cannot be accidentally mixed
 - canonical versioning is reliable
 - validation is deterministic where required
+- provenance is available
 - approval is explicit
-- rollback/failure semantics are understood
-- adapter mocks cannot corrupt approved state
+- adapter failures cannot corrupt approved state
 
-Then start the Layout/Canonical Building Model milestone.
+After that, proceed to ARCHON Canvas MVP + semantic layout engine.
