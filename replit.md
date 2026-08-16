@@ -45,6 +45,14 @@ Before implementing anything, read these files completely:
 - Do not merge the PR automatically.
 - If there is a merge conflict or architecture ambiguity, stop and document it in the PR or linked issue instead of silently choosing a destructive resolution.
 
+## Implementation state (Phase 0 — delivered)
+
+- pnpm monorepo: `lib/domain` (pure zod domain, state machine, validation gate, deterministic mock brief interpreter, AI router with OpenAI hard-disabled), `lib/db` (Drizzle, 10 tables, migrations), `lib/engine` (transactional propose/validate/approve/commit pipeline, canvas promotion, seed), `artifacts/api-server` (Express 5 on :3001), `artifacts/archon-web` (Vite SPA, proxies `/api` → 3001).
+- Approval + commit are one atomic transaction with row locking; re-validation rebases a ChangeSet onto the current baseline; commit rejects stale bases; unique `approvedChangeSetId` guarantees idempotency.
+- Tests: 16 domain unit + 10 API integration (require DATABASE_URL, never skip). Run `pnpm run lint && pnpm -r run typecheck && pnpm -r run test`.
+- Seed: `pnpm run db:seed` creates "Restaurant Demo" through the real pipeline.
+- Branch `agent/replit-phase-0-foundation`, draft PR: https://github.com/9dbit/Archon/pull/7. `.github/workflows/ci.yml` exists locally but is NOT on GitHub — the connection token lacks the `workflow` scope.
+
 ## Current milestone
 
 Phase 0 + smallest usable Project Genesis slice.
