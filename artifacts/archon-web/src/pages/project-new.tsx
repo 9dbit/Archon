@@ -54,7 +54,10 @@ export default function ProjectNew() {
       setProjectId(proj.id);
 
       if (briefText.trim()) {
-        const result = await interpretBrief.mutateAsync({ text: briefText });
+        const result = await interpretBrief.mutateAsync({
+          text: briefText,
+          projectId: proj.id,
+        });
         setInterpretation(result);
         setStep(2);
       } else {

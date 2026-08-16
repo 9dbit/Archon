@@ -48,8 +48,11 @@ export function useCreateProject() {
 
 export function useInterpretBrief(projectId: string) {
   return useMutation({
-    mutationFn: async (data: { text: string }) => {
-      const res = await fetch(`/api/projects/${projectId}/interpret-brief`, {
+    // projectId may not exist yet at hook-creation time (project created in the
+    // same handler); allow an explicit override to avoid a stale closure.
+    mutationFn: async (data: { text: string; projectId?: string }) => {
+      const id = data.projectId || projectId;
+      const res = await fetch(`/api/projects/${id}/interpret-brief`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),

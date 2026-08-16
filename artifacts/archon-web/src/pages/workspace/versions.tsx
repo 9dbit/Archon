@@ -76,7 +76,11 @@ export default function WorkspaceVersions({
                         <span className="font-medium text-foreground">
                           ChangeSet:
                         </span>
-                        <span>{v.changeSetId.slice(0, 8)}</span>
+                        <span>
+                          {v.approvedChangeSetId
+                            ? v.approvedChangeSetId.slice(0, 8)
+                            : "—"}
+                        </span>
                       </div>
                       <div className="flex gap-4">
                         <span>Rules: {v.snapshot.rules?.length || 0}</span>
