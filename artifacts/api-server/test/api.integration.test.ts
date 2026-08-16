@@ -385,4 +385,131 @@ describe("ARCHON Phase 0 API", () => {
     expect(ok.status).toBe(200);
     expect(ok.body.result.ok).toBe(true);
   });
+
+  // 11. Concurrency safety: lifecycle transitions serialize under row locks
+  // and terminal states can never be overwritten.
+
+  /** Propose a clean brief ChangeSet and validate it into NEEDS_REVIEW. */
+  async function proposeReviewable(projectId: string): Promise<string> {
+    const cs = await propose(projectId, [
+      { type: "UPSERT_BRIEF", brief: goodBrief },
+    ]);
+    const v = await request(app)
+      .post(`/api/change-sets/${cs}/validate`)
+      .send({ actor: "test" });
+    expect(v.body.state).toBe("NEEDS_REVIEW");
+    return cs;
+  }
+
+  it("keeps a committed ChangeSet committed when approve and reject race", async () => {
+    const id = await createProject(`T11a ${Date.now()}`);
+    const cs = await proposeReviewable(id);
+
+    const [approveRes, rejectRes] = await Promise.all([
+      request(app)
+        .post(`/api/change-sets/${cs}/approve`)
+        .send({ reviewer: "alice" }),
+      request(app)
+        .post(`/api/change-sets/${cs}/reject`)
+        .send({ reviewer: "bob" }),
+    ]);
+
+    // Exactly one of the two racing decisions may win.
+    const winners = [approveRes, rejectRes].filter((r) => r.status < 300);
+    expect(winners.length).toBe(1);
+
+    const detail = await request(app).get(`/api/change-sets/${cs}`);
+    const finalState = detail.body.state;
+    if (approveRes.status < 300) {
+      // Approval won: the ChangeSet is COMMITTED and reject was refused.
+      expect(finalState).toBe("COMMITTED");
+      expect(rejectRes.status).toBeGreaterThanOrEqual(400);
+      const project = await request(app).get(`/api/projects/${id}`);
+      expect(project.body.approved.versionNumber).toBe(1);
+      // Audit history must not contain a contradictory rejection.
+      const audit = await request(app).get(`/api/projects/${id}/audit-events`);
+      const events = audit.body
+        .filter((e: any) => e.entityId === cs)
+        .map((e: any) => e.eventType);
+      expect(events).toContain("CHANGE_SET_APPROVED");
+      expect(events).not.toContain("CHANGE_SET_REJECTED");
+    } else {
+      expect(finalState).toBe("REJECTED");
+      const project = await request(app).get(`/api/projects/${id}`);
+      expect(project.body.approved.versionNumber).toBe(0);
+    }
+  });
+
+  it("never lets an edit mutate a ChangeSet that approval just committed", async () => {
+    const id = await createProject(`T11b ${Date.now()}`);
+    const cs = await proposeReviewable(id);
+    const original = (await request(app).get(`/api/change-sets/${cs}`)).body
+      .operations;
+
+    const editedBrief = { ...goodBrief, targetGfaSqm: 999 };
+    const [approveRes, editRes] = await Promise.all([
+      request(app)
+        .post(`/api/change-sets/${cs}/approve`)
+        .send({ reviewer: "alice" }),
+      request(app)
+        .patch(`/api/change-sets/${cs}`)
+        .send({
+          operations: [{ type: "UPSERT_BRIEF", brief: editedBrief }],
+          actor: "mallory",
+        }),
+    ]);
+
+    const detail = await request(app).get(`/api/change-sets/${cs}`);
+    const finalState = detail.body.state;
+    if (approveRes.status < 300 && finalState === "COMMITTED") {
+      // Commit won the race at the row lock: the edit must have been refused
+      // and the committed operations must be the originals.
+      expect(editRes.status).toBeGreaterThanOrEqual(400);
+      expect(detail.body.operations).toEqual(original);
+      const project = await request(app).get(`/api/projects/${id}`);
+      expect(project.body.brief.brief.targetGfaSqm).not.toBe(999);
+    } else {
+      // Edit won: ChangeSet went back to PROPOSED and approval was refused.
+      expect(editRes.status).toBeLessThan(300);
+      expect(approveRes.status).toBeGreaterThanOrEqual(400);
+      expect(finalState).toBe("PROPOSED");
+      const project = await request(app).get(`/api/projects/${id}`);
+      expect(project.body.approved.versionNumber).toBe(0);
+    }
+  });
+
+  it("refuses reject, edit, and validate on an already-committed ChangeSet", async () => {
+    const id = await createProject(`T11c ${Date.now()}`);
+    const cs = await proposeReviewable(id);
+    const approve = await request(app)
+      .post(`/api/change-sets/${cs}/approve`)
+      .send({ reviewer: "alice" });
+    expect(approve.status).toBeLessThan(300);
+
+    const [rej, edit, val] = await Promise.all([
+      request(app)
+        .post(`/api/change-sets/${cs}/reject`)
+        .send({ reviewer: "bob" }),
+      request(app)
+        .patch(`/api/change-sets/${cs}`)
+        .send({
+          operations: [{ type: "UPSERT_BRIEF", brief: goodBrief }],
+          actor: "bob",
+        }),
+      request(app)
+        .post(`/api/change-sets/${cs}/validate`)
+        .send({ actor: "bob" }),
+    ]);
+    for (const res of [rej, edit, val]) {
+      expect(res.status).toBeGreaterThanOrEqual(400);
+    }
+    const detail = await request(app).get(`/api/change-sets/${cs}`);
+    expect(detail.body.state).toBe("COMMITTED");
+    const audit = await request(app).get(`/api/projects/${id}/audit-events`);
+    const events = audit.body
+      .filter((e: any) => e.entityId === cs)
+      .map((e: any) => e.eventType);
+    expect(events).not.toContain("CHANGE_SET_REJECTED");
+    expect(events).not.toContain("CHANGE_SET_EDITED");
+  });
 });

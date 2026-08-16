@@ -90,33 +90,43 @@ export async function updateChangeSetOperations(input: {
   affectedDomains?: string[];
   actor: string;
 }) {
-  const cs = await loadChangeSet(input.changeSetId);
-  if (!isEditable(cs.state) && cs.state !== "PROPOSED") {
-    throw new EngineError(`ChangeSet in state ${cs.state} cannot be edited`);
-  }
-  const nextState =
-    cs.state === "PROPOSED"
-      ? "PROPOSED"
-      : assertTransition(cs.state, "PROPOSED");
-  const [updated] = await db
-    .update(changeSets)
-    .set({
-      operations: input.operations,
-      intentSummary: input.intentSummary ?? cs.intentSummary,
-      affectedDomains: input.affectedDomains ?? cs.affectedDomains,
-      state: nextState,
-      updatedAt: new Date(),
-    })
-    .where(eq(changeSets.id, cs.id))
-    .returning();
-  await recordAudit(db, {
-    projectId: cs.projectId,
-    entityType: "change_set",
-    entityId: cs.id,
-    eventType: "CHANGE_SET_EDITED",
-    actor: input.actor,
+  // Lock the row and re-check state inside the transaction so an edit can
+  // never overwrite a ChangeSet that a concurrent request just committed,
+  // approved, or rejected.
+  return db.transaction(async (tx) => {
+    const [cs] = await tx
+      .select()
+      .from(changeSets)
+      .where(eq(changeSets.id, input.changeSetId))
+      .for("update");
+    if (!cs) throw new EngineError("ChangeSet not found", 404);
+    if (!isEditable(cs.state) && cs.state !== "PROPOSED") {
+      throw new EngineError(`ChangeSet in state ${cs.state} cannot be edited`);
+    }
+    const nextState =
+      cs.state === "PROPOSED"
+        ? "PROPOSED"
+        : assertTransition(cs.state, "PROPOSED");
+    const [updated] = await tx
+      .update(changeSets)
+      .set({
+        operations: input.operations,
+        intentSummary: input.intentSummary ?? cs.intentSummary,
+        affectedDomains: input.affectedDomains ?? cs.affectedDomains,
+        state: nextState,
+        updatedAt: new Date(),
+      })
+      .where(eq(changeSets.id, cs.id))
+      .returning();
+    await recordAudit(tx, {
+      projectId: cs.projectId,
+      entityType: "change_set",
+      entityId: cs.id,
+      eventType: "CHANGE_SET_EDITED",
+      actor: input.actor,
+    });
+    return updated!;
   });
-  return updated!;
 }
 
 /** Sandbox preview: before/after computed purely, baseline untouched. */
@@ -139,32 +149,37 @@ export async function previewChangeSet(changeSetId: string) {
  * PROPOSED -> SANDBOXED -> VALIDATING -> NEEDS_REVIEW | VALIDATION_FAILED.
  */
 export async function validateChangeSet(changeSetId: string, actor: string) {
-  let cs = await loadChangeSet(changeSetId);
-  if (cs.state === "NEEDS_REVIEW" || cs.state === "VALIDATION_FAILED") {
-    // Re-validation loop: route back through PROPOSED.
-    await db
-      .update(changeSets)
-      .set({
-        state: assertTransition(cs.state, "PROPOSED"),
-        updatedAt: new Date(),
-      })
-      .where(eq(changeSets.id, cs.id));
-    cs = await loadChangeSet(changeSetId);
-  }
-  if (cs.state !== "PROPOSED") {
-    throw new EngineError(`ChangeSet in state ${cs.state} cannot be validated`);
-  }
-  assertTransition(cs.state, "SANDBOXED");
-  assertTransition("SANDBOXED", "VALIDATING");
+  // The whole validation cycle runs under one transaction with a row lock,
+  // so a concurrent approve/reject/edit cannot interleave with the state
+  // read and final write.
+  return db.transaction(async (tx) => {
+    const [cs] = await tx
+      .select()
+      .from(changeSets)
+      .where(eq(changeSets.id, changeSetId))
+      .for("update");
+    if (!cs) throw new EngineError("ChangeSet not found", 404);
+    let state = cs.state;
+    if (state === "NEEDS_REVIEW" || state === "VALIDATION_FAILED") {
+      // Re-validation loop: route back through PROPOSED.
+      state = assertTransition(state, "PROPOSED");
+    }
+    if (state !== "PROPOSED") {
+      throw new EngineError(`ChangeSet in state ${state} cannot be validated`);
+    }
+    assertTransition(state, "SANDBOXED");
+    assertTransition("SANDBOXED", "VALIDATING");
 
-  const baseline = await getApprovedSnapshot(cs.projectId);
-  const sandboxed = applyOperations(baseline.snapshot, cs.operations);
-  const checks = runValidationGate(sandboxed);
-  const finalState = hasBlockingChecks(checks)
-    ? assertTransition("VALIDATING", "VALIDATION_FAILED")
-    : assertTransition("VALIDATING", "NEEDS_REVIEW");
+    const baseline = await getApprovedSnapshot(cs.projectId, tx);
+    const sandboxed = applyOperations(
+      baseline.snapshot,
+      cs.operations as Parameters<typeof applyOperations>[1],
+    );
+    const checks = runValidationGate(sandboxed);
+    const finalState = hasBlockingChecks(checks)
+      ? assertTransition("VALIDATING", "VALIDATION_FAILED")
+      : assertTransition("VALIDATING", "NEEDS_REVIEW");
 
-  await db.transaction(async (tx) => {
     await tx
       .delete(validationChecks)
       .where(eq(validationChecks.changeSetId, cs.id));
@@ -208,8 +223,8 @@ export async function validateChangeSet(changeSetId: string, actor: string) {
         blocking: hasBlockingChecks(checks),
       },
     });
+    return { state: finalState, checks };
   });
-  return { state: finalState, checks };
 }
 
 export async function listChecks(changeSetId: string) {
@@ -312,9 +327,16 @@ export async function rejectChangeSet(input: {
   reviewer: string;
   note?: string;
 }) {
-  const cs = await loadChangeSet(input.changeSetId);
-  const next = assertTransition(cs.state, "REJECTED");
+  // Lock the row and re-check state inside the transaction so a reject can
+  // never overwrite a ChangeSet a concurrent request just committed.
   await db.transaction(async (tx) => {
+    const [cs] = await tx
+      .select()
+      .from(changeSets)
+      .where(eq(changeSets.id, input.changeSetId))
+      .for("update");
+    if (!cs) throw new EngineError("ChangeSet not found", 404);
+    const next = assertTransition(cs.state, "REJECTED");
     await tx
       .update(changeSets)
       .set({ state: next, updatedAt: new Date() })
@@ -333,7 +355,7 @@ export async function rejectChangeSet(input: {
       actor: input.reviewer,
     });
   });
-  return loadChangeSet(cs.id);
+  return loadChangeSet(input.changeSetId);
 }
 
 /**
