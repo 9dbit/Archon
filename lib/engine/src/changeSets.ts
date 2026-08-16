@@ -188,7 +188,13 @@ export async function validateChangeSet(changeSetId: string, actor: string) {
     }
     await tx
       .update(changeSets)
-      .set({ state: finalState, updatedAt: new Date() })
+      .set({
+        state: finalState,
+        // Rebase: validation ran against the current approved baseline, so
+        // the ChangeSet is now based on it. Commit rejects stale bases.
+        baseVersionId: baseline.versionId,
+        updatedAt: new Date(),
+      })
       .where(eq(changeSets.id, cs.id));
     await recordAudit(tx, {
       projectId: cs.projectId,
@@ -265,7 +271,21 @@ export async function approveChangeSet(input: {
     );
   }
   const next = assertTransition(cs.state, "APPROVED");
-  await db.transaction(async (tx) => {
+  // Approval + commit are one atomic transaction: a ChangeSet can never be
+  // left APPROVED without its immutable version / baseline update.
+  return db.transaction(async (tx) => {
+    // Re-read under the transaction and take a row lock so concurrent
+    // approvals serialize instead of double-approving.
+    const [locked] = await tx
+      .select()
+      .from(changeSets)
+      .where(eq(changeSets.id, cs.id))
+      .for("update");
+    if (!locked || locked.state !== "NEEDS_REVIEW") {
+      throw new EngineError(
+        `ChangeSet in state ${locked?.state ?? "MISSING"} cannot be approved`,
+      );
+    }
     await tx
       .update(changeSets)
       .set({ state: next, updatedAt: new Date() })
@@ -283,8 +303,8 @@ export async function approveChangeSet(input: {
       eventType: "CHANGE_SET_APPROVED",
       actor: input.reviewer,
     });
+    return commitWithinTx(tx, { ...locked, state: next }, input.reviewer);
   });
-  return commitChangeSet(cs.id, input.reviewer);
 }
 
 export async function rejectChangeSet(input: {
@@ -334,13 +354,35 @@ export async function commitChangeSet(changeSetId: string, actor: string) {
   if (cs.state !== "APPROVED") {
     throw new EngineError(`ChangeSet in state ${cs.state} cannot be committed`);
   }
+  return db.transaction(async (tx) => commitWithinTx(tx, cs, actor));
+}
+
+type ChangeSetRow = Awaited<ReturnType<typeof loadChangeSet>>;
+
+/**
+ * Commit body shared by approveChangeSet (single approval+commit transaction)
+ * and commitChangeSet. Must run inside a transaction.
+ */
+async function commitWithinTx(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  cs: ChangeSetRow,
+  actor: string,
+) {
   assertTransition(cs.state, "COMMITTING");
   assertTransition("COMMITTING", "COMMITTED");
 
-  const baseline = await getApprovedSnapshot(cs.projectId);
+  // Baseline is read inside the transaction; reject stale proposals so a
+  // ChangeSet validated against an older version cannot silently overwrite
+  // a newer approved baseline.
+  const baseline = await getApprovedSnapshot(cs.projectId, tx);
+  if ((cs.baseVersionId ?? null) !== (baseline.versionId ?? null)) {
+    throw new EngineError(
+      `ChangeSet base version is stale (based on ${cs.baseVersionId ?? "none"}, current approved is ${baseline.versionId ?? "none"}). Re-validate against the current baseline before committing.`,
+    );
+  }
   const after = applyOperations(baseline.snapshot, cs.operations);
 
-  const version = await db.transaction(async (tx) => {
+  const version = await (async () => {
     // Idempotency guard inside the transaction (unique approvedChangeSetId).
     const [already] = await tx
       .select()
@@ -433,9 +475,13 @@ export async function commitChangeSet(changeSetId: string, actor: string) {
       payload: { versionNumber, changeSetId: cs.id },
     });
     return created;
-  });
+  })();
 
-  return { changeSet: await loadChangeSet(cs.id), version };
+  const [committed] = await tx
+    .select()
+    .from(changeSets)
+    .where(eq(changeSets.id, cs.id));
+  return { changeSet: committed!, version };
 }
 
 export async function listChangeSets(projectId: string) {

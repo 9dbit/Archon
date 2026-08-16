@@ -20,7 +20,7 @@ import { useLocation } from "wouter";
 
 export default function WorkspaceCanvas({ projectId }: { projectId: string }) {
   const { data: artifacts, isLoading } = useCanvasArtifacts(projectId);
-  const promote = usePromoteArtifact("", projectId);
+  const promote = usePromoteArtifact(projectId);
   const [, setLocation] = useLocation();
 
   const handlePromote = async (artifact: any) => {
@@ -29,6 +29,7 @@ export default function WorkspaceCanvas({ projectId }: { projectId: string }) {
       // We pass the operations we want this artifact to promote.
       // For a demo artifact, we might just assume it wants to upsert a canonical object based on its metadata.
       const result = await promote.mutateAsync({
+        artifactId: artifact.id,
         operations: [
           {
             type: "UPSERT_CANONICAL_OBJECT",
@@ -38,7 +39,7 @@ export default function WorkspaceCanvas({ projectId }: { projectId: string }) {
               parameters: artifact.metadata || {},
               relationships: [],
               provenance: {
-                sourceType: "CANVAS_PROMOTION",
+                sourceType: "USER_INPUT",
                 sourceReference: artifact.id,
               },
             },

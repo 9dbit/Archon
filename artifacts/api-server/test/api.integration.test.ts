@@ -195,6 +195,44 @@ describe("ARCHON Phase 0 API", () => {
     expect(events).toContain("VERSION_COMMITTED");
   });
 
+  // 6b. Stale-base ChangeSets cannot overwrite a newer approved baseline
+  it("refuses to commit a ChangeSet whose base version is stale", async () => {
+    const id = await createProject(`T6b ${Date.now()}`);
+    // Two proposals, both based on version 0.
+    const cs1 = await propose(id, [{ type: "UPSERT_BRIEF", brief: goodBrief }]);
+    const cs2 = await propose(id, [
+      { type: "UPSERT_BRIEF", brief: { ...goodBrief, targetGfaSqm: 999 } },
+    ]);
+    // Validate both against version 0, then commit cs1 (creates v1).
+    await request(app).post(`/api/change-sets/${cs2}/validate`).send({});
+    await request(app).post(`/api/change-sets/${cs1}/validate`).send({});
+    const first = await request(app)
+      .post(`/api/change-sets/${cs1}/approve`)
+      .send({ reviewer: "test" });
+    expect(first.status).toBe(200);
+
+    // cs2 was validated against the pre-commit baseline: approval must fail,
+    // and the approved baseline must remain the version cs1 produced.
+    const second = await request(app)
+      .post(`/api/change-sets/${cs2}/approve`)
+      .send({ reviewer: "test" });
+    expect(second.status).toBe(409);
+    let detail = await request(app).get(`/api/projects/${id}`);
+    expect(detail.body.approved.versionNumber).toBe(1);
+    expect(detail.body.brief.brief.targetGfaSqm).toBe(goodBrief.targetGfaSqm);
+
+    // Correction path: re-validating rebases onto the current baseline,
+    // after which approval commits cleanly as v2.
+    await request(app).post(`/api/change-sets/${cs2}/validate`).send({});
+    const third = await request(app)
+      .post(`/api/change-sets/${cs2}/approve`)
+      .send({ reviewer: "test" });
+    expect(third.status).toBe(200);
+    expect(third.body.version.versionNumber).toBe(2);
+    detail = await request(app).get(`/api/projects/${id}`);
+    expect(detail.body.brief.brief.targetGfaSqm).toBe(999);
+  });
+
   // 7. Illegal state transitions are rejected
   it("rejects illegal state transitions via the API", async () => {
     const id = await createProject(`T7 ${Date.now()}`);

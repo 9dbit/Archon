@@ -12,10 +12,14 @@ export function useCanvasArtifacts(projectId: string) {
   });
 }
 
-export function usePromoteArtifact(artifactId: string, projectId: string) {
+export function usePromoteArtifact(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: {
+    mutationFn: async ({
+      artifactId,
+      ...data
+    }: {
+      artifactId: string;
       operations: any[];
       intentSummary?: string;
       actor: string;

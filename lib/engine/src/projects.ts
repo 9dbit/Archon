@@ -8,6 +8,7 @@ import {
   projects,
   projectVersions,
 } from "@workspace/db";
+import type { Db, Tx } from "@workspace/db";
 import type { CanonicalSnapshot } from "@workspace/domain";
 import { emptySnapshot } from "@workspace/domain";
 import { recordAudit } from "./audit";
@@ -51,17 +52,23 @@ export async function getProject(projectId: string) {
 }
 
 /** Authoritative approved baseline — the snapshot of the current approved version. */
-export async function getApprovedSnapshot(projectId: string): Promise<{
+export async function getApprovedSnapshot(
+  projectId: string,
+  executor: Db | Tx = db,
+): Promise<{
   snapshot: CanonicalSnapshot;
   versionId: string | null;
   versionNumber: number;
 }> {
-  const project = await getProject(projectId);
+  const [project] = await executor
+    .select()
+    .from(projects)
+    .where(eq(projects.id, projectId));
   if (!project) throw new Error("Project not found");
   if (!project.currentApprovedVersionId) {
     return { snapshot: emptySnapshot(), versionId: null, versionNumber: 0 };
   }
-  const [version] = await db
+  const [version] = await executor
     .select()
     .from(projectVersions)
     .where(eq(projectVersions.id, project.currentApprovedVersionId));
