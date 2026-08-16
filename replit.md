@@ -1,10 +1,13 @@
 # ARCHON — Replit Agent Context
 
 ## Mission
+
 Build ARCHON as an AI-first architecture operating system. GitHub is the source-of-code truth; Replit is the implementation environment.
 
 ## Mandatory project context
+
 Before implementing anything, read these files completely:
+
 - `docs/01_BUILD_PLAN.md`
 - `docs/02_SYSTEM_ARCHITECTURE.md`
 - `docs/03_VALIDATION_APPROVAL.md`
@@ -17,6 +20,7 @@ Before implementing anything, read these files completely:
 - `docs/10_REPLIT_GITHUB_SYNC.md`
 
 ## Non-negotiable architecture rules
+
 1. ARCHON Canonical Model is authoritative for design intent, rules, versions and approvals.
 2. Canvas/exploration state is non-authoritative until promoted.
 3. Promotion path is: Explore -> Promote -> Validate -> Review/Edit -> Approve -> Commit.
@@ -31,6 +35,7 @@ Before implementing anything, read these files completely:
 12. Do not implement real SketchUp/Revit/AutoCAD/V-Ray/Rhino integrations in Phase 0.
 
 ## GitHub workflow
+
 - Never work directly on `main`.
 - Pull latest `main` before starting a coding session.
 - Work on an `agent/*` branch, initially `agent/replit-phase-0-foundation`.
@@ -41,12 +46,14 @@ Before implementing anything, read these files completely:
 - If there is a merge conflict or architecture ambiguity, stop and document it in the PR or linked issue instead of silently choosing a destructive resolution.
 
 ## Current milestone
+
 Phase 0 + smallest usable Project Genesis slice.
 
 Required user flow:
 Project Genesis -> Structured Brief -> Proposed ChangeSet -> Sandbox -> Validation -> Checklist -> Review/Edit -> Approval -> Immutable Version -> Audit.
 
 ## Definition of done
+
 - App boots in Replit.
 - Durable PostgreSQL persistence works.
 - New project can be created.
@@ -62,7 +69,9 @@ Project Genesis -> Structured Brief -> Proposed ChangeSet -> Sandbox -> Validati
 - lint, typecheck and tests pass.
 
 ## Communication discipline
+
 Use GitHub artifacts as the communication bridge with ChatGPT:
+
 - implementation status -> commits / PR description
 - blockers -> GitHub issue or PR comment
 - assumptions -> PR description
