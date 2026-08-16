@@ -1,6 +1,6 @@
-# ARCHON — Replit Master Build Prompt v0.1
+# ARCHON — Replit Master Build Prompt v0.2
 
-Paste the prompt below into Replit Agent **with Plan mode enabled first** after importing `https://github.com/9dbit/Archon`.
+Use this prompt after importing `https://github.com/9dbit/Archon` into Replit. Start in **Plan mode**.
 
 ---
 
@@ -8,122 +8,158 @@ Paste the prompt below into Replit Agent **with Plan mode enabled first** after 
 
 You are the implementation agent for **ARCHON — The AI Operating System for Architecture**.
 
-You are working in this GitHub repository:
-
+Repository:
 `https://github.com/9dbit/Archon`
 
-### 0. First action: do not code immediately
+## 0. Read before coding
 
-Before writing code:
+Read completely:
+- `README.md`
+- `docs/01_BUILD_PLAN.md`
+- `docs/02_SYSTEM_ARCHITECTURE.md`
+- `docs/03_VALIDATION_APPROVAL.md`
+- `docs/04_API_REGISTRY.md`
+- `docs/05_REPLIT_MASTER_PROMPT.md`
+- `docs/06_REPLIT_START_HERE.md`
+- `docs/07_PRODUCT_PLAN_V2.md`
+- `docs/08_UI_WORKSPACE_SPEC.md`
+- `docs/09_AI_ROUTER_DESIGN_DNA.md`
 
-1. Read these repository documents completely:
-   - `README.md`
-   - `docs/01_BUILD_PLAN.md`
-   - `docs/02_SYSTEM_ARCHITECTURE.md`
-   - `docs/03_VALIDATION_APPROVAL.md`
-   - `docs/04_API_REGISTRY.md`
-   - `docs/05_REPLIT_MASTER_PROMPT.md`
-2. Inspect the repository and current Git branch/status.
-3. Produce a concise implementation plan for **Phase 0 + the smallest usable slice of Phase 1 only**.
-4. List assumptions and risks.
-5. Do NOT implement SketchUp, Revit, AutoCAD, V-Ray or Rhino integrations in this first build. Create adapter contracts/mocks only.
-6. Do NOT build microservices. Start with a modular monolith that can later split cleanly.
-7. Show the plan for review before starting implementation if Replit Plan mode supports approval.
+Then:
+1. inspect repository status and current branch;
+2. produce a concise Phase 0 + smallest Phase 1 implementation plan;
+3. list assumptions and risks;
+4. do not implement real SketchUp/Revit/AutoCAD/V-Ray/Rhino integrations yet;
+5. do not implement full Canvas, CAD/BIM geometry, MEP or BOQ yet;
+6. preserve the architecture so those modules can be added cleanly;
+7. show the implementation plan for review if Plan mode supports it.
 
-### 1. Product objective for this build
+## 1. Product architecture that must be preserved
 
-Build the first runnable ARCHON application where a user can:
+ARCHON has two different state domains:
 
-1. Create an architecture project.
-2. Enter an architectural brief in natural language or manually edit structured fields.
-3. Convert the brief into a structured project draft using a deterministic/mock parser first, with an optional OpenAI implementation behind an interface if `OPENAI_API_KEY` exists.
-4. Review/edit structured project requirements.
+### Exploration State — Canvas
+Non-authoritative creative artifacts such as references, alternatives, sketches, generated images and concept 3D.
+
+### Authoritative State — Building Model
+Validated semantic project truth such as dimensions, rules, building objects, materials and approved project versions.
+
+A Canvas artifact may only become authoritative through:
+
+```text
+Select -> Promote -> Proposed ChangeSet -> Validation -> Review/Edit -> Approval -> Commit
+```
+
+Do not allow exploratory outputs to silently mutate approved Building Model state.
+
+## 2. Objective for this first build
+
+Build a runnable ARCHON application where a user can:
+
+1. Create a project.
+2. Enter an architectural brief using text or structured fields.
+3. Convert it into a structured project proposal.
+4. Review/edit the structured proposal.
 5. Create project rules/constraints.
-6. Produce a proposed ChangeSet rather than mutating approved state directly.
-7. Run a Validation Gate.
-8. Show an editable review checklist with PASS/WARNING/BLOCKER states and source/provenance.
+6. Produce a Proposed ChangeSet instead of mutating approved state.
+7. Run Validation Gate.
+8. Review an editable checklist with PASS/WARNING/BLOCKER/CRITICAL states and provenance.
 9. Approve or reject the ChangeSet.
-10. On approval, create a new immutable project version and audit event.
-11. View version history and the current approved baseline.
+10. On approval create a new immutable ProjectVersion and AuditEvent.
+11. View current approved baseline and version history.
+12. See a minimal placeholder distinction between **Canvas Mode** and **Building Mode**.
+13. Store minimal CanvasArtifact records so exploration and authoritative state are separated at the data-model level.
+14. Display mock external adapter health/capabilities.
 
-This is the first proof that ARCHON's governance model works. Do not attempt full generative architecture yet.
+This milestone proves governance and data architecture, not generative architecture.
 
-### 2. Required architecture
+## 3. Technology direction
 
-Use **TypeScript end-to-end**.
+Use TypeScript end-to-end.
 
-Recommended initial stack:
-- Next.js with App Router
+Recommended:
+- Next.js App Router
 - TypeScript strict mode
 - React
 - Tailwind CSS
 - PostgreSQL
-- Drizzle ORM (or an equivalently lightweight typed ORM if Replit's environment strongly favors another option; document the choice)
-- Zod for runtime/domain validation
-- Vitest for unit/domain tests
-- Playwright for a small critical-flow E2E test if practical in Replit
+- Drizzle ORM or equivalent typed ORM
+- Zod
+- Vitest
+- Playwright for a small critical E2E flow if practical
 
-Use the simplest reliable Replit-compatible setup.
+Start as a modular monolith.
 
-Suggested logical structure:
+Logical boundaries should include:
 
 ```text
-apps/
-  web/
-packages/
-  domain/
-  db/
-  validation/
-  adapters/
-  ai/
-  ui/
-  shared/
-docs/
+app / apps-web
+ domain
+ db
+ canvas
+ promotion
+ validation
+ adapters
+ ai
+ knowledge
+ ui
+ shared
 ```
 
-If a monorepo adds avoidable friction in Replit, keep one Next.js app but preserve these boundaries as directories/modules. Prefer clarity and runnable code over ceremonial complexity.
+Do not create microservices yet.
 
-### 3. Domain model required in Phase 0
+## 4. Required Phase 0 domain entities
 
-Implement typed schemas/entities for at least:
-
-#### Project
+### Project
 - id
 - name
 - status
 - buildingType
 - locationText
+- currentApprovedVersionId
 - createdAt
 - updatedAt
-- currentApprovedVersionId
 
-#### ProjectBrief
+### ProjectBrief
 - projectId
 - site dimensions/area
-- number of levels
+- levels
 - floor-to-floor heights
 - target GFA optional
-- room/program requirements
+- program requirements
 - setbacks
 - circulation requirements
 - door standards
 - window standards
 - notes
 
-#### CanonicalObject
-Initial generic semantic object foundation:
+### CanvasArtifact
+Minimal foundation only:
+- id
+- projectId
+- artifactType
+- title
+- status
+- parentArtifactIds
+- sourceType
+- sourceReference optional
+- metadata JSON
+- promotionStatus
+- createdAt
+
+Do not build full Infinite Canvas yet.
+
+### CanonicalObject
 - archonId immutable
 - projectId
 - objectType
-- parameters JSON with typed wrapper
+- parameters
 - relationships
 - revision
 - provenance
 - confidence optional
 
-Do not overbuild geometry yet.
-
-#### ProjectRule
+### ProjectRule
 - id
 - projectId
 - code
@@ -132,13 +168,13 @@ Do not overbuild geometry yet.
 - operator/constraint form where possible
 - expected value
 - unit
-- source type
-- source reference
-- severity when violated
+- sourceType
+- sourceReference
+- severity
 - active revision
 
-#### ChangeSet
-States must include at least:
+### ChangeSet
+States include at least:
 - DRAFT
 - PROPOSED
 - SANDBOXED
@@ -150,22 +186,24 @@ States must include at least:
 - COMMITTED
 - VALIDATION_FAILED
 
-Fields:
+Fields include:
 - id
 - projectId
 - baseVersionId
-- source: USER_TEXT | USER_FORM | VOICE_PLACEHOLDER | EXTERNAL_ADAPTER | AI
+- source
 - intent summary
 - typed operations
+- affected domains
+- requested locks optional
 - createdBy
 - timestamps
 - state
 
-#### ValidationCheck
+### ValidationCheck
 - id
 - changeSetId
 - category
-- status: PASS | WARNING | BLOCKER | CRITICAL
+- status PASS | WARNING | BLOCKER | CRITICAL
 - severity
 - observed value
 - expected value
@@ -178,7 +216,7 @@ Fields:
 - reviewerNote optional
 - waiverReason optional
 
-#### Approval
+### Approval
 - id
 - changeSetId
 - decision
@@ -186,248 +224,252 @@ Fields:
 - note
 - timestamp
 
-#### ProjectVersion
+### ProjectVersion
 - id
 - projectId
 - version number
 - parentVersionId
-- canonical snapshot or deterministic reference to state
+- canonical snapshot or deterministic reference
 - approvedChangeSetId
 - timestamp
 
-#### AuditEvent
+### AuditEvent
 Append-only event for important transitions.
 
-### 4. Immutable workflow rule
-
-Never let a form or AI output directly overwrite approved project state.
+## 5. Immutable workflow
 
 Required flow:
 
 ```text
 User input
- -> draft structured brief
- -> Proposed ChangeSet
- -> sandboxed proposed state
- -> Validation Gate
- -> checklist
- -> edit/fix if needed
- -> explicit approval
- -> commit new ProjectVersion
- -> update current approved baseline
- -> audit event
+-> draft structured brief
+-> Proposed ChangeSet
+-> sandboxed proposed state
+-> Validation Gate
+-> checklist
+-> edit/fix
+-> explicit approval
+-> commit new ProjectVersion
+-> update approved baseline
+-> audit event
 ```
 
-A rejected/failed ChangeSet must leave the approved baseline unchanged.
+Rejected/failed ChangeSet leaves approved baseline unchanged.
 
-### 5. Initial deterministic validations
+## 6. Initial deterministic validations
 
-Implement enough real rules to prove the framework:
+Implement enough real checks to prove the framework:
+- dimensions positive
+- site dimensions reasonable/configured
+- floor-to-floor positive and configurable warning threshold
+- door width/height checks where supplied
+- window sill/head consistency
+- circulation minimum checks
+- explicit dimensional units
+- blocking rules require provenance
+- blocker/critical prevents normal approval
+- CanvasArtifact itself cannot directly mutate authoritative state
+- promotion placeholder must create a Proposed ChangeSet, not a direct canonical mutation
 
-1. All dimensions must be positive.
-2. Site width/depth must be within reasonable configured numeric bounds.
-3. Floor-to-floor height must be positive and produce warnings below a configurable project threshold.
-4. Door width/height rules can be checked when values exist.
-5. Window sill/head values must be internally geometrically consistent when supplied.
-6. Circulation minimum rules must validate against supplied/project values where applicable.
-7. Unit must be explicit for dimensional rules.
-8. Required source/provenance must exist for project rules before they can block approval.
-9. A CRITICAL/BLOCKER check prevents normal approval until fixed or explicitly handled according to the policy.
+Validators should be pure/testable where practical.
 
-Make validators pure/testable functions where practical.
+## 7. AI boundary
 
-### 6. AI boundary
-
-Create an interface such as:
-
-```ts
-interface ArchitecturalIntentInterpreter {
-  interpretBrief(input: string): Promise<StructuredBriefProposal>
-}
-```
+Create a provider-independent interface for architectural intent interpretation.
 
 Implement:
-- `MockIntentInterpreter` as the default so the system works without paid APIs.
-- optional `OpenAIIntentInterpreter` only if the environment has `OPENAI_API_KEY`.
+- deterministic/mock interpreter by default
+- optional OpenAI implementation only when credential is present
 
-The AI implementation must return typed structured proposals validated with Zod.
+Also define, but do not fully implement, an `AIModelRouter` boundary that can later route reasoning, realtime voice, image, 3D, retrieval and optimization tasks.
 
-Never execute arbitrary generated code.
-Never let LLM text become an authoritative dimension/rule without validation and user review.
+All AI outputs must be typed/validated before domain use.
+No arbitrary eval/exec.
+No AI text becomes authoritative dimensions/rules without Validation + Approval.
 
-### 7. Adapter boundary
+## 8. Design Lock foundation
 
-Define the common adapter contract from `docs/02_SYSTEM_ARCHITECTURE.md`.
+Define a typed representation for lockable domains:
+- geometry
+- structure
+- layout
+- openings
+- furniture
+- materials
+- lighting
+- camera
+- documentation
+- rules
 
-Create mock adapters:
+Do not build sophisticated enforcement yet, but include affected-domain and requested-lock fields in ChangeSet so the architecture is ready.
+
+## 9. Adapter boundary
+
+Implement common adapter contract from system architecture.
+
+Create mocks only:
 - SketchUpMockAdapter
 - RevitMockAdapter
 - AutoCADMockAdapter
 
-The mocks should demonstrate:
-- health state
-- capability declaration
+Mocks demonstrate:
+- health
+- capabilities
 - preview
-- validate
-- simulated sync/reconciliation
+- validation
+- simulated sync
+- reconciliation
+- controlled failure
 
-Do not call real vendor APIs yet.
+A failed adapter must never corrupt approved canonical state.
 
-### 8. UI direction
+## 10. UI direction
 
-The first application should already feel like ARCHON, not a generic admin dashboard.
+The first app must feel like ARCHON rather than a generic admin dashboard.
 
-Desktop layout concept:
+Desktop shell:
 
 ```text
 +-------------------------------------------------------------+
-| ARCHON | Project | Stage | Sync Health | Version            |
+| ARCHON | Project | Stage | Mode | Sync | Version            |
 +----------------+--------------------------+------------------+
-|                |                          |                  |
 | AI COMMAND     | MAIN WORKSPACE           | CONTEXT /        |
 | CENTER         |                          | VALIDATION       |
-|                | Phase 1: project brief   |                  |
-| text input     | structured requirements  | checklist        |
-| future voice   | future 2D/3D viewport    | issues           |
-| history        |                          | source/evidence  |
-|                |                          | approval         |
+|                | Brief / Canvas placeholder|                 |
+| text           | Building workspace       | checklist        |
+| voice future   |                          | sources          |
+| history        |                          | approval         |
 +----------------+--------------------------+------------------+
 | VERSION / DECISION TIMELINE                                  |
 +-------------------------------------------------------------+
 ```
 
-Design goals:
-- professional architecture software aesthetic
-- dark-neutral or restrained premium interface
-- information dense but calm
-- clear PASS/WARNING/BLOCKER states
-- large central workspace
-- architecture-specific terminology
-- responsive enough for laptop/tablet, but desktop is primary
+Required visual distinction:
+- Canvas Mode = exploratory/non-authoritative
+- Building Mode = authoritative/validated
 
-Do not spend the entire first build on visual polish. Domain correctness is higher priority.
+Do not build a sophisticated node editor in this milestone.
 
-### 9. Required screens/routes
+## 11. Required routes
 
 At minimum:
+- `/` dashboard/project list
+- `/projects/new` Project Genesis
+- `/projects/[id]` workspace
 
-1. `/` — project list / dashboard
-2. `/projects/new` — Project Genesis
-3. `/projects/[id]` — project workspace
-4. workspace tabs/sections:
-   - Brief
-   - Rules
-   - Changes
-   - Validation
-   - Versions
-   - Integrations (mock status)
+Workspace areas:
+- Brief
+- Canvas (minimal placeholder + stored artifacts)
+- Building
+- Rules
+- Changes
+- Validation
+- Versions
+- Integrations
 
-### 10. Version & commit UX
+## 12. Version/commit UX
 
-When the user proposes a change:
-- show what changed
-- show base version
-- run validation
-- show checklist
-- allow editing before approval
-- require an explicit `Approve Commit` action
-- on success display new version number
+When proposing change:
+- show before/after
+- base version
+- affected domains
+- validation checklist
+- source/provenance
+- edit before approval
+- explicit `Approve Commit`
+- new version after success
 
-For rejected changes, show that approved baseline was not modified.
+Never blur AI suggestion and approved truth.
 
-### 11. Database and migrations
+## 13. Database
 
-Use PostgreSQL and migrations.
+Use PostgreSQL migrations.
+Do not use local filesystem for production project state.
 
-Do not rely on local filesystem persistence for production project data.
-
-Seed a demo project demonstrating:
-- restaurant brief
+Seed a restaurant demo with:
+- brief
 - several project rules
-- one approved version
-- one pending ChangeSet with warnings
+- approved version
+- pending ChangeSet
+- one CanvasArtifact alternative
+- validation warnings
 
-### 12. Security/reliability basics
+## 14. Reliability/security basics
 
-For this first build:
-- environment secrets must not be committed
-- validate all API inputs
-- generate IDs server-side
+- secrets never committed
+- validate API inputs
+- server-generated IDs
 - append audit events
-- use idempotency where commit endpoint can be retried
-- database transaction for canonical commit where possible
-- no arbitrary eval/exec
-- clear error boundary/UI
+- idempotent commit behavior
+- transaction for canonical commit where possible
+- no arbitrary code execution
+- error boundaries
+- last approved state remains recoverable
 
-### 13. Tests required before declaring Phase 0 complete
+## 15. Tests required
 
-Write tests for at least:
+At least:
 - ChangeSet does not mutate approved state before approval
 - failed validation leaves baseline unchanged
-- approved valid ChangeSet creates a new version
-- validation correctly blocks invalid dimension/rule case
-- provenance/source is included in validation output
-- adapter mock can fail without corrupting canonical approved state
-- repeated commit request is safely handled/idempotent
+- valid approved ChangeSet creates version
+- blocker prevents approval
+- provenance appears in validation output
+- mock adapter failure cannot corrupt canonical state
+- repeated commit is idempotent
+- CanvasArtifact remains non-authoritative
+- promotion placeholder produces proposal rather than direct mutation
 
-Run lint, typecheck and tests.
+Run lint + typecheck + tests.
 
-### 14. Git discipline
+## 16. Git discipline
 
-Before editing:
-- run `git status -sb`
-- do not overwrite unrelated changes
-
-If currently on `main`, create a working branch such as:
+If on `main`, create a working branch such as:
 `agent/replit-phase-0-foundation`
 
-Use small checkpoint commits after tests pass.
+Use small checkpoint commits.
+Do not merge to main automatically.
 
-Do not merge to `main` automatically.
+## 17. Definition of Done
 
-### 15. Replit environment
-
-Configure the app so Replit can run it with a clear workflow/run command.
-
-If database setup is required, use the supported Replit database workflow and document setup in README.
-
-Secrets such as `OPENAI_API_KEY` must be added through Replit Secrets, never hard-coded.
-
-### 16. Definition of Done for this Replit build
-
-Do not say the build is complete until all of these are true:
-
-- app launches successfully
-- database migration succeeds
-- demo data loads
-- new project can be created
-- brief can be entered/reviewed
-- proposed ChangeSet can be generated
-- validation checklist appears
+Do not declare complete until:
+- app launches
+- database migration works
+- seed loads
+- new project works
+- brief review/edit works
+- Canvas vs Building distinction is visible
+- minimal CanvasArtifact can be stored
+- Proposed ChangeSet works
+- Validation checklist works
 - blocker prevents approval
-- user can correct data and rerun validation
-- explicit approval creates new version
+- user can correct and rerun
+- approval creates new version
 - version history works
-- mock integrations display health/capabilities
+- mock integrations display health
+- adapter failure test passes
 - lint passes
 - typecheck passes
-- unit/domain tests pass
-- README includes Replit run/setup instructions
+- tests pass
+- README contains Replit setup/run instructions
 
-At completion, report:
-1. files/modules created
-2. architecture decisions made
-3. commands/tests run and their results
+At completion report:
+1. modules created
+2. architecture decisions
+3. validation/test results
 4. known limitations
-5. exact recommended next milestone
+5. next recommended milestone
 
-### 17. Important scope boundary
+## 18. Hard scope boundary
 
-Do NOT implement real SketchUp/Revit/AutoCAD integrations during this build.
-Do NOT implement true CAD/BIM geometry generation yet.
-Do NOT implement full MEP or BOQ yet.
-Do NOT silently relax validation to make tests pass.
+Do NOT yet implement:
+- real SketchUp/Revit/AutoCAD integration
+- full Infinite Canvas/node editor
+- real CAD/BIM generation
+- full MEP
+- full BOQ
+- V-Ray/Rhino integration
+- automatic Design DNA learning
 
-The purpose of this first milestone is to make the **ARCHON canonical change + validation + approval + versioning loop unquestionably solid**.
+The first milestone exists to make ARCHON's **exploration separation + canonical change + validation + approval + versioning** foundation reliable.
 
 ## PROMPT END
