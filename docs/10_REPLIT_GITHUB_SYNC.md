@@ -1,10 +1,10 @@
-# ARCHON — GitHub ↔ Replit Sync Protocol
+# ARCHON - GitHub <-> Replit Sync Protocol
 
 ## Objective
-Use GitHub as the persistent source of code, review history, approvals and handoff between ChatGPT and Replit. Replit is the active implementation environment.
+Use GitHub as the persistent source of code, review history, approvals, visual evidence and handoff between ChatGPT and Replit. Replit is the active implementation environment.
 
 ## Why this model
-Replit supports importing GitHub repositories and full Git synchronization (pull, push, branches, conflict resolution). This lets ARCHON continue without a direct ChatGPT↔Replit connector.
+Replit supports importing GitHub repositories and full Git synchronization (pull, push, branches, conflict resolution). This lets ARCHON continue without a direct ChatGPT-to-Replit connector.
 
 ## Responsibility map
 
@@ -16,6 +16,7 @@ Authoritative for:
 - issues/blockers
 - review comments
 - approved merges
+- persistent UI screenshot evidence
 
 ### Replit
 Responsible for:
@@ -24,7 +25,8 @@ Responsible for:
 - local development environment
 - database/runtime configuration
 - tests and debugging
-- pushing tested code back to GitHub
+- automated UI screenshot capture
+- pushing tested code and screenshot evidence back to GitHub
 
 ### ChatGPT
 Responsible for:
@@ -32,6 +34,7 @@ Responsible for:
 - GitHub review
 - issue/PR triage
 - updating product specifications
+- reviewing committed UI screenshots
 - deciding whether implementation matches ARCHON contracts
 - preparing next implementation prompts
 
@@ -66,8 +69,10 @@ At each checkpoint:
 1. Run relevant tests.
 2. Run lint/typecheck.
 3. Inspect diff.
-4. Commit only coherent tested changes.
-5. Push branch to GitHub.
+4. If the checkpoint creates or changes visible UI, run the screenshot evidence workflow from `docs/11_UI_SCREENSHOT_PROTOCOL.md`.
+5. Inspect generated screenshots for obvious regressions.
+6. Commit only coherent tested changes and their current visual evidence.
+7. Push branch to GitHub.
 
 ### GitHub as message bus
 Replit communicates with ChatGPT through GitHub artifacts:
@@ -77,8 +82,29 @@ Replit communicates with ChatGPT through GitHub artifacts:
 - Important assumption: PR description
 - Architecture decision: documentation/ADR
 - Test results: PR description / CI logs
+- UI result: `screenshot/<update-id>/` and `screenshot/README.md`
 
-ChatGPT can then inspect those GitHub changes without needing direct access to the Replit workspace.
+ChatGPT can then inspect GitHub changes and visual evidence without needing direct access to the Replit workspace.
+
+## UI screenshot handoff
+
+Every UI-affecting checkpoint must create a visual checkpoint under:
+
+```text
+screenshot/<update-id>/
+```
+
+Each update contains:
+- `manifest.json`
+- `REVIEW.md`
+- desktop screenshots for every route in scope
+- mobile screenshots for every route in scope
+
+The PR or checkpoint note must identify the exact screenshot folder to review.
+
+Do not use screenshots as a replacement for tests. Screenshot evidence proves visible UI state; automated tests prove logic and data integrity.
+
+See `docs/11_UI_SCREENSHOT_PROTOCOL.md` for the full standard.
 
 ## Merge policy
 - Replit must never merge its own implementation into `main`.
@@ -89,6 +115,7 @@ ChatGPT can then inspect those GitHub changes without needing direct access to t
   - no critical architecture rule is bypassed
   - no secrets are committed
   - known limitations are documented
+  - UI-affecting changes have current screenshot evidence
 - Merge is handled after GitHub review.
 
 ## Conflict policy
@@ -104,6 +131,8 @@ GitHub stores no live secret values.
 Replit Secrets holds runtime credentials.
 Only variable names/documentation may be committed, e.g. `.env.example` later.
 
+Screenshots must never capture secrets, OAuth codes, Replit Secrets panels, account pages, personal email, or production customer data.
+
 ## Automatic checks
 After the application scaffold exists, add GitHub Actions for:
 - dependency install
@@ -114,10 +143,12 @@ After the application scaffold exists, add GitHub Actions for:
 
 Do not add a speculative CI workflow before the actual package manager and commands exist. The first Replit implementation PR should add CI using the real project scripts.
 
+The local/Replit checkpoint workflow should additionally automate route screenshot capture through Playwright once the web application is runnable.
+
 ## Phase 0 handoff prompt
 In Replit Agent Plan mode, use the repository master prompt from `docs/05_REPLIT_MASTER_PROMPT.md`, with this additional instruction:
 
-> Treat GitHub as the source-of-code truth and follow `replit.md` plus `docs/10_REPLIT_GITHUB_SYNC.md`. Work on `agent/replit-phase-0-foundation`, push tested checkpoints to GitHub, and open a draft PR when the milestone is ready. Do not merge to main.
+> Treat GitHub as the source-of-code truth and follow `replit.md` plus `docs/10_REPLIT_GITHUB_SYNC.md`. Work on `agent/replit-phase-0-foundation`, push tested checkpoints and current screenshot evidence to GitHub, and open a draft PR when the milestone is ready. Do not merge to main.
 
 ## Phase 0 handoff completion signal
 The Replit milestone is considered handed back to ChatGPT when a draft PR exists on GitHub containing:
@@ -125,7 +156,8 @@ The Replit milestone is considered handed back to ChatGPT when a draft PR exists
 - architecture decisions
 - tests run/results
 - known limitations
-- screenshots/preview notes if useful
+- exact screenshot update folder(s)
+- visual review notes
 - explicit next milestone recommendation
 
-At that point ChatGPT reviews the PR directly through GitHub and returns requested changes through the PR/issue workflow.
+At that point ChatGPT reviews the PR and committed screenshots directly through GitHub and returns requested changes through the PR/issue workflow.
