@@ -1,4 +1,4 @@
-import { and, desc, eq, max } from 'drizzle-orm';
+import { desc, eq, max } from 'drizzle-orm';
 import type { ArchonDatabase } from './index';
 import {
   approvals,
@@ -40,23 +40,6 @@ export async function approveChangeSet(
       .limit(1);
 
     if (!changeSet) throw new Error('CHANGESET_NOT_FOUND');
-    if (!['NEEDS_REVIEW', 'APPROVED', 'COMMITTED'].includes(changeSet.state)) {
-      throw new Error(`CHANGESET_NOT_APPROVABLE:${changeSet.state}`);
-    }
-
-    const blockers = await tx
-      .select()
-      .from(validationFindings)
-      .where(
-        and(
-          eq(validationFindings.changeSetId, changeSet.id),
-          // Drizzle does not expose an IN helper through eq; filtering below preserves strict typing.
-        )
-      );
-
-    if (blockers.some((finding) => finding.status === 'BLOCKER' || finding.status === 'CRITICAL')) {
-      throw new Error('VALIDATION_BLOCKS_APPROVAL');
-    }
 
     const [existingVersion] = await tx
       .select()
@@ -65,6 +48,19 @@ export async function approveChangeSet(
       .limit(1);
 
     if (existingVersion) return existingVersion;
+
+    if (!['NEEDS_REVIEW', 'APPROVED'].includes(changeSet.state)) {
+      throw new Error(`CHANGESET_NOT_APPROVABLE:${changeSet.state}`);
+    }
+
+    const findings = await tx
+      .select()
+      .from(validationFindings)
+      .where(eq(validationFindings.changeSetId, changeSet.id));
+
+    if (findings.some((finding) => finding.status === 'BLOCKER' || finding.status === 'CRITICAL')) {
+      throw new Error('VALIDATION_BLOCKS_APPROVAL');
+    }
 
     await tx.insert(approvals).values({
       changeSetId: changeSet.id,
