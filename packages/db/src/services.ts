@@ -9,6 +9,21 @@ import {
   validationFindings
 } from './schema';
 
+export async function listProjects(db: ArchonDatabase) {
+  return db
+    .select({
+      id: projects.id,
+      name: projects.name,
+      status: projects.status,
+      buildingType: projects.buildingType,
+      locationText: projects.locationText,
+      currentApprovedVersionId: projects.currentApprovedVersionId,
+      updatedAt: projects.updatedAt
+    })
+    .from(projects)
+    .orderBy(desc(projects.updatedAt));
+}
+
 export async function getProjectSummary(db: ArchonDatabase, projectId: string) {
   const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
   if (!project) return null;
@@ -25,7 +40,20 @@ export async function getProjectSummary(db: ArchonDatabase, projectId: string) {
     .where(eq(changeSets.projectId, projectId))
     .orderBy(desc(changeSets.createdAt));
 
-  return { project, versions, proposedChanges };
+  const changeSetIds = proposedChanges.map((changeSet) => changeSet.id);
+  const findings = changeSetIds.length
+    ? (await Promise.all(
+        changeSetIds.map(async (changeSetId) => ({
+          changeSetId,
+          findings: await db
+            .select()
+            .from(validationFindings)
+            .where(eq(validationFindings.changeSetId, changeSetId))
+        }))
+      )).flatMap((entry) => entry.findings)
+    : [];
+
+  return { project, versions, proposedChanges, validationFindings: findings };
 }
 
 export async function approveChangeSet(
