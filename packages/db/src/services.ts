@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, max } from 'drizzle-orm';
 import type { ArchonDatabase } from './index';
 import { approvals, auditEvents, canonicalObjects, changeSets, projectVersions, projects, validationFindings } from './schema';
+import { applyCanonicalOperationToParameters, type CanonicalGeometryOperation } from './canonical-geometry';
 
 const ACTIVE_CHANGESET_STATES = ['DRAFT','PROPOSED','SANDBOXED','VALIDATING','NEEDS_REVIEW','APPROVED'] as const;
 type ActiveChangeSetState = (typeof ACTIVE_CHANGESET_STATES)[number];
@@ -20,9 +21,8 @@ export async function getProjectSummary(db: ArchonDatabase, projectId:string) {
   return {project,versions,proposedChanges,validationFindings:findings,canonicalObjects:buildingObjects};
 }
 
-type CanonicalOperation={type:string;targetId:string;payload:Record<string,unknown>};
+type CanonicalOperation=CanonicalGeometryOperation;
 function finiteNumber(value:unknown){return typeof value==='number'&&Number.isFinite(value)}
-function tuple3(value:unknown):[number,number,number]{return Array.isArray(value)&&value.length===3&&value.every(finiteNumber)?value as [number,number,number]:[0,0,0]}
 
 export async function createProposedChangeSet(db:ArchonDatabase,input:{projectId:string;intentSummary:string;operations:CanonicalOperation[];createdBy:string}){
   return db.transaction(async tx=>{
@@ -57,7 +57,7 @@ export async function discardChangeSet(db:ArchonDatabase,input:{changeSetId:stri
 
 function materializeCanonicalObjects(objects:any[],operations:CanonicalOperation[],nextVersionNumber:number){
  const operationMap=new Map<string,CanonicalOperation[]>();for(const operation of operations){const list=operationMap.get(operation.targetId)??[];list.push(operation);operationMap.set(operation.targetId,list)}
- return objects.map(item=>{const itemOperations=operationMap.get(item.archonId)??[];if(!itemOperations.length)return {...item};let parameters={...(item.parameters??{})};for(const operation of itemOperations){if(operation.type==='MOVE'){const position=tuple3(parameters.positionMm);parameters={...parameters,positionMm:[position[0]+(finiteNumber(operation.payload.deltaXmm)?operation.payload.deltaXmm as number:0),position[1]+(finiteNumber(operation.payload.deltaYmm)?operation.payload.deltaYmm as number:0),position[2]+(finiteNumber(operation.payload.deltaZmm)?operation.payload.deltaZmm as number:0)]}}else if(operation.type==='UPDATE')parameters={...parameters,...operation.payload}}return {...item,parameters,revision:item.revision+1,provenance:{...(item.provenance??{}),source:'ARCHON_CHANGESET',version:String(nextVersionNumber),authority:'BUILDING'}}})
+ return objects.map(item=>{const itemOperations=operationMap.get(item.archonId)??[];if(!itemOperations.length)return {...item};let parameters={...(item.parameters??{})};for(const operation of itemOperations)parameters=applyCanonicalOperationToParameters(parameters,operation);return {...item,parameters,revision:item.revision+1,provenance:{...(item.provenance??{}),source:'ARCHON_CHANGESET',version:String(nextVersionNumber),authority:'BUILDING'}}})
 }
 
 export async function approveChangeSet(db:ArchonDatabase,input:{changeSetId:string;reviewer:string;note?:string}){
