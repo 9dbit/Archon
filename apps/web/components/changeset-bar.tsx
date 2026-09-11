@@ -1,12 +1,14 @@
 'use client';
 
 import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
+export type ChangeOperation = { type:string; targetId:string; payload:Record<string,unknown> };
 export type LiveChangeSet = {
   id: string;
   intentSummary: string;
   state: string;
+  operations?: ChangeOperation[];
 };
 
 export type ValidationFinding = {
@@ -25,6 +27,7 @@ export function ChangeSetBar({ changeSet, findings = [], onCommitted }: ChangeSe
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState<string | null>(null);
   const [localState,setLocalState] = useState(changeSet?.state ?? 'NONE');
+  useEffect(()=>setLocalState(changeSet?.state??'NONE'),[changeSet?.id,changeSet?.state]);
 
   if(!changeSet) return null;
   const changeSetId = changeSet.id;
@@ -43,7 +46,7 @@ export function ChangeSetBar({ changeSet, findings = [], onCommitted }: ChangeSe
       const response = await fetch(`/api/changesets/${changeSetId}/approve`, {
         method:'POST',
         headers:{'content-type':'application/json'},
-        body:JSON.stringify({ reviewer:'ARCHON User', note:'Approved from Checkpoint D workspace.' })
+        body:JSON.stringify({ reviewer:'ARCHON User', note:'Approved from governed workspace preview.' })
       });
       const payload = await response.json();
       if(!response.ok) throw new Error(payload.error ?? 'APPROVAL_FAILED');
