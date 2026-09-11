@@ -6,6 +6,9 @@
     "dev": "pnpm --filter @archon/web dev",
     "build": "pnpm --filter @archon/web build",
     "lint": "pnpm --filter @archon/web lint",
-    "typecheck": "pnpm --filter @archon/web typecheck"
+    "typecheck": "pnpm -r --if-present typecheck",
+    "db:generate": "pnpm --filter @archon/db db:generate",
+    "db:migrate": "pnpm --filter @archon/db db:migrate",
+    "db:seed": "pnpm --filter @archon/db db:seed"
   }
 }
