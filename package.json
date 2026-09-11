@@ -1,0 +1,11 @@
+{
+  "name": "archon",
+  "private": true,
+  "packageManager": "pnpm@10.17.1",
+  "scripts": {
+    "dev": "pnpm --filter @archon/web dev",
+    "build": "pnpm --filter @archon/web build",
+    "lint": "pnpm --filter @archon/web lint",
+    "typecheck": "pnpm --filter @archon/web typecheck"
+  }
+}
