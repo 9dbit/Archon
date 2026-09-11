@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm';
 import { createDatabase } from './index';
 import {
   auditEvents,
@@ -64,7 +65,9 @@ export async function seedCasaNusa(databaseUrl: string) {
     approvedChangeSetId: bootstrapChangeSet.id
   }).returning();
 
-  await db.update(projects).set({ currentApprovedVersionId: version.id }).where((await import('drizzle-orm')).eq(projects.id, project.id));
+  await db.update(projects)
+    .set({ currentApprovedVersionId: version.id })
+    .where(eq(projects.id, project.id));
 
   const [pending] = await db.insert(changeSets).values({
     projectId: project.id,
