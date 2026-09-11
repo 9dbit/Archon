@@ -1,9 +1,3 @@
-export function Inspector(){
-  return <aside className="inspector">
-    <div className="inspector-tabs"><button className="active">Properties</button><button>Relationships</button><button>Validation</button><button>History</button></div>
-    <section><div className="section-head"><b>Wall</b><button>Edit</button></div><dl><dt>ID</dt><dd>W-014</dd><dt>Type</dt><dd>Interior Partition</dd><dt>Length</dt><dd>6,400 mm</dd><dt>Height</dt><dd>3,200 mm</dd><dt>Thickness</dt><dd>150 mm</dd><dt>Material</dt><dd>AAC + Plaster</dd><dt>Layer</dt><dd>A-WALL</dd><dt>Level</dt><dd>Ground Floor</dd></dl></section>
-    <section><b>Connected Elements</b><div className="chips"><span>Kitchen R-01</span><span>Storage R-02</span><span>Door D-03</span><span>Window W-05</span></div></section>
-    <section><b>Validation</b><ul className="checks"><li>✓ Geometry dimension OK</li><li>✓ Meets fire rating requirement</li><li>✓ Connected to room boundaries</li><li className="warning">⚠ Acoustic requirement not defined</li></ul></section>
-    <section><b>Tags</b><div className="chips"><span>Interior</span><span>Kitchen</span><span>Structural</span></div></section>
-  </aside>;
-}
+import type { CanonicalObject } from './canonical-3d-viewport';
+function text(v:unknown){return typeof v==='string'||typeof v==='number'?String(v):'—'}
+export function Inspector({object}:{object?:CanonicalObject|null}){const p=object?.parameters??{};const r=object?.relationships??{};const provenance=object?.provenance??{};return <aside className="inspector"><div className="inspector-tabs"><button className="active">Properties</button><button>Relationships</button><button>Validation</button><button>History</button></div>{object?<><section><div className="section-head"><b>{text(p.label)}</b><button>Edit</button></div><dl><dt>ARCHON ID</dt><dd>{object.archonId}</dd><dt>Type</dt><dd>{object.objectType}</dd><dt>Revision</dt><dd>{object.revision}</dd><dt>Material</dt><dd>{text(p.material)}</dd><dt>Level</dt><dd>{text(r.level)}</dd></dl></section><section><b>Geometry · canonical mm</b><pre>{JSON.stringify({positionMm:p.positionMm,sizeMm:p.sizeMm,widthMm:p.widthMm},null,2)}</pre></section><section><b>Relationships</b><pre>{JSON.stringify(r,null,2)}</pre></section><section><b>Provenance</b><pre>{JSON.stringify(provenance,null,2)}</pre></section></>:<section><b>No object selected</b><p>Click a canonical element in the 3D viewport. Selection reads directly from the approved Building Graph.</p></section>}</aside>}
