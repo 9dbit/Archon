@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { discardChangeSet } from '@archon/db';
-import { getDatabase } from '../../../../../../lib/db';
+import { getDatabase } from '../../../../../lib/db';
 
 export async function POST(request:Request,context:{params:Promise<{changeSetId:string}>}){
  try{
