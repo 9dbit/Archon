@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { listProjects } from '@archon/db';
-import { getDatabase } from '../../lib/db';
+import { getDatabase } from '../../../lib/db';
 
 export async function GET() {
   try {
