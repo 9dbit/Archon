@@ -1,4 +1,4 @@
-import { boolean, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 export const changeSetState = pgEnum('change_set_state', ['DRAFT','PROPOSED','SANDBOXED','VALIDATING','NEEDS_REVIEW','APPROVED','REJECTED','COMMITTING','COMMITTED','VALIDATION_FAILED']);
 export const validationStatus = pgEnum('validation_status', ['PASS','WARNING','BLOCKER','CRITICAL']);
@@ -62,7 +62,7 @@ export const changeSets = pgTable('change_sets', {
   state: changeSetState('state').notNull().default('DRAFT'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
-});
+}, (t) => ({ projectStateIdx: index('change_sets_project_state_idx').on(t.projectId, t.state) }));
 
 export const validationFindings = pgTable('validation_findings', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -79,7 +79,7 @@ export const validationFindings = pgTable('validation_findings', {
   confidencePermille: integer('confidence_permille').notNull().default(1000),
   reviewerNote: text('reviewer_note'),
   waiverReason: text('waiver_reason')
-});
+}, (t) => ({ changeSetIdx: index('validation_findings_change_set_idx').on(t.changeSetId) }));
 
 export const approvals = pgTable('approvals', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -98,7 +98,10 @@ export const projectVersions = pgTable('project_versions', {
   snapshot: jsonb('snapshot').$type<Record<string, unknown>>().notNull(),
   approvedChangeSetId: uuid('approved_change_set_id').references(() => changeSets.id).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
-}, (t) => ({ approvedChangeSetUnique: uniqueIndex('project_versions_approved_change_set_uq').on(t.approvedChangeSetId) }));
+}, (t) => ({
+  approvedChangeSetUnique: uniqueIndex('project_versions_approved_change_set_uq').on(t.approvedChangeSetId),
+  projectVersionUnique: uniqueIndex('project_versions_project_number_uq').on(t.projectId, t.versionNumber)
+}));
 
 export const auditEvents = pgTable('audit_events', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -109,7 +112,7 @@ export const auditEvents = pgTable('audit_events', {
   actor: text('actor').notNull(),
   payload: jsonb('payload').$type<Record<string, unknown>>().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
-});
+}, (t) => ({ projectCreatedIdx: index('audit_events_project_created_idx').on(t.projectId, t.createdAt) }));
 
 export const adapterJobs = pgTable('adapter_jobs', {
   id: uuid('id').defaultRandom().primaryKey(),
