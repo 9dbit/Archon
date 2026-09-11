@@ -2,6 +2,10 @@ import { and, desc, eq, inArray, max } from 'drizzle-orm';
 import type { ArchonDatabase } from './index';
 import { approvals, auditEvents, canonicalObjects, changeSets, projectVersions, projects, validationFindings } from './schema';
 
+const ACTIVE_CHANGESET_STATES = ['DRAFT','PROPOSED','SANDBOXED','VALIDATING','NEEDS_REVIEW','APPROVED'] as const;
+type ActiveChangeSetState = (typeof ACTIVE_CHANGESET_STATES)[number];
+function isActiveChangeSetState(state:string): state is ActiveChangeSetState { return (ACTIVE_CHANGESET_STATES as readonly string[]).includes(state); }
+
 export async function listProjects(db: ArchonDatabase) {
   return db.select({ id:projects.id,name:projects.name,status:projects.status,buildingType:projects.buildingType,locationText:projects.locationText,currentApprovedVersionId:projects.currentApprovedVersionId,updatedAt:projects.updatedAt }).from(projects).orderBy(desc(projects.updatedAt));
 }
@@ -25,7 +29,7 @@ export async function createProposedChangeSet(db:ArchonDatabase,input:{projectId
     const [project]=await tx.select().from(projects).where(eq(projects.id,input.projectId)).limit(1); if(!project)throw new Error('PROJECT_NOT_FOUND');
     if(!project.currentApprovedVersionId)throw new Error('PROJECT_HAS_NO_APPROVED_VERSION');
     if(!input.operations.length)throw new Error('NO_OPERATIONS');
-    const active=await tx.select({id:changeSets.id}).from(changeSets).where(and(eq(changeSets.projectId,input.projectId),inArray(changeSets.state,['DRAFT','PROPOSED','SANDBOXED','VALIDATING','NEEDS_REVIEW','APPROVED']))).limit(1);
+    const active=await tx.select({id:changeSets.id}).from(changeSets).where(and(eq(changeSets.projectId,input.projectId),inArray(changeSets.state,[...ACTIVE_CHANGESET_STATES]))).limit(1);
     if(active.length)throw new Error('ACTIVE_CHANGESET_EXISTS');
     const targets=await tx.select().from(canonicalObjects).where(eq(canonicalObjects.projectId,input.projectId));
     const targetMap=new Map(targets.map(item=>[item.archonId,item]));
@@ -44,7 +48,7 @@ export async function discardChangeSet(db:ArchonDatabase,input:{changeSetId:stri
  return db.transaction(async tx=>{
   const [changeSet]=await tx.select().from(changeSets).where(eq(changeSets.id,input.changeSetId)).limit(1); if(!changeSet)throw new Error('CHANGESET_NOT_FOUND');
   if(changeSet.state==='REJECTED')return changeSet;
-  if(!['DRAFT','PROPOSED','SANDBOXED','VALIDATING','NEEDS_REVIEW','APPROVED'].includes(changeSet.state))throw new Error(`CHANGESET_NOT_DISCARDABLE:${changeSet.state}`);
+  if(!isActiveChangeSetState(changeSet.state))throw new Error(`CHANGESET_NOT_DISCARDABLE:${changeSet.state}`);
   const [discarded]=await tx.update(changeSets).set({state:'REJECTED',updatedAt:new Date()}).where(eq(changeSets.id,changeSet.id)).returning();
   await tx.insert(auditEvents).values({projectId:changeSet.projectId,entityType:'ChangeSet',entityId:changeSet.id,eventType:'DISCARDED',actor:input.actor,payload:{reason:input.reason??null,approvedBuildingMutated:false}});
   return discarded;
