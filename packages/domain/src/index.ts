@@ -93,3 +93,5 @@ export interface ArchonEngineAdapter {
   execute(job: EngineJob): Promise<EngineJobResult>;
   reconcile(job: EngineJob, result: EngineJobResult): Promise<EngineJobResult>;
 }
+
+export * from './change-set';
