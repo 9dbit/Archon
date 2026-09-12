@@ -23,3 +23,14 @@ test('changed command, parameters, foreign config and resource alias versions fa
  await assert.rejects(probeSandboxResources({env:{...env,APS_ACTIVITY_ID:'foreign.Activity+alias'},fetcher:mock().fetcher}),/CONFIG_MISMATCH/);
  const m=mock();const versionFetch=(url,o)=>url.includes('/aliases/')?Promise.resolve(new Response(JSON.stringify({version:2}))):m.fetcher(url,o);await assert.rejects(probeSandboxResources({env,fetcher:versionFetch}),/VERSION_MISMATCH/);
 });
+test('Autodesk omitted false defaults are accepted without allowing malformed flags or missing required fields',async()=>{
+ const sparse=mock(a=>{for(const p of Object.values(a.parameters)){delete p.zip;delete p.ondemand;}});
+ assert.equal((await probeSandboxResources({env,fetcher:sparse.fetcher})).executionEnabled,false);
+ for(const field of ['zip','ondemand'])for(const value of [true,null,'false',0,{},[]]){
+  const m=mock(a=>a.parameters.report[field]=value);
+  await assert.rejects(probeSandboxResources({env,fetcher:m.fetcher}),/PARAMETER_MISMATCH/);
+ }
+ for(const edit of [a=>delete a.parameters.report.required,a=>delete a.parameters.report,a=>a.parameters.extra={}]){
+  const m=mock(edit);await assert.rejects(probeSandboxResources({env,fetcher:m.fetcher}),/PARAMETER_MISMATCH/);
+ }
+});
