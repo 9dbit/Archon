@@ -54,3 +54,6 @@ export type EngineAdapterKey = keyof typeof engineAdapters;
 
 export { ApsAuthService, ApsAutomationService, getApsConfig, getApsDiagnostics, createDwgPipelinePlan } from './aps';
 export type { ApsConfig, DwgPipelinePlan } from './aps';
+
+export { getApsConnectionStatus, startApsConnectionProbe } from './aps';
+export type { ApsDiscovery } from './aps';

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ApsAuthService, ApsAutomationService, getApsDiagnostics, createDwgPipelinePlan } from './aps.ts';
+import { ApsAuthService, ApsAutomationService, getApsDiagnostics, createDwgPipelinePlan, startApsConnectionProbe, getApsConnectionStatus } from './aps.ts';
 const config = { clientId: 'test-id', clientSecret: 'test-secret', engineId: 'Autodesk.AutoCAD+24_3', activityId: 'owner.layout+dev', appBundleId: 'owner.bundle+dev' };
 test('missing credentials and configuration cause zero network calls', async () => {
   let calls = 0; const request = async () => { calls++; throw Error('network'); };
@@ -52,4 +52,53 @@ test('resource mismatch and transport failures fail closed without secret diagno
   const mismatch = await new ApsAutomationService(config, validAuth, async () => Response.json({engine:'wrong'})).handshake();
   assert.equal(mismatch.verified,false); assert.deepEqual(mismatch.diagnostics,['APS_RESOURCE_MISMATCH']);
   assert.throws(() => createDwgPipelinePlan('job',{mode:'PREVIEW',versionId:''}), /APS_SOURCE_VERSION_REQUIRED/);
+});
+
+test('credential-only discovery follows engine pages and never submits jobs', async () => {
+  const calls = [];
+  const credentials = {clientId:'id',clientSecret:'secret'};
+  const auth = new ApsAuthService(credentials, async () => Response.json({access_token:'private',token_type:'Bearer',expires_in:120}));
+  const request = async (url, options) => {
+    calls.push({url,method:options.method});
+    if (url.endsWith('/engines')) return Response.json({data:['Autodesk.Revit+2025'], paginationToken:'page/2'});
+    if (url.includes('/engines?page=')) return Response.json({data:['Autodesk.AutoCAD+24_3']});
+    return Response.json({data:[]});
+  };
+  const result = await new ApsAutomationService(credentials, auth, request).discover();
+  assert.equal(result.authVerified,true); assert.equal(result.automationVerified,true);
+  assert.deepEqual(result.autoCadEngines,['Autodesk.AutoCAD+24_3']);
+  assert.equal(result.appBundleCount,0); assert.equal(result.activityCount,0);
+  assert.equal(result.executionEnabled,false); assert.equal(calls.length,4);
+  assert.equal(calls.every(call=>call.method==='GET'),true);
+});
+test('discovery preserves auth success when Automation access is denied', async () => {
+  const auth = new ApsAuthService(config, async () => Response.json({access_token:'private',token_type:'Bearer',expires_in:120}));
+  const result = await new ApsAutomationService(config,auth,async()=>new Response('secret',{status:403})).discover();
+  assert.equal(result.authVerified,true); assert.equal(result.automationVerified,false);
+  assert.deepEqual(result.diagnostics,['APS_AUTOMATION_HTTP_403']);
+});
+test('discovery rejects malformed pages and bounds pagination', async () => {
+  const auth = new ApsAuthService(config, async () => Response.json({access_token:'private',token_type:'Bearer',expires_in:120}));
+  let calls=0;
+  const limited = await new ApsAutomationService(config,auth,async()=>{calls++; return Response.json({data:[],paginationToken:'loop'});}).discover();
+  assert.deepEqual(limited.diagnostics,['APS_DISCOVERY_PAGE_LIMIT']); assert.equal(calls,5);
+  const malformed = await new ApsAutomationService(config,auth,async()=>Response.json({data:[{secret:'x'}]})).discover();
+  assert.deepEqual(malformed.diagnostics,['APS_RESOURCE_INVALID']);
+});
+test('startup probe runs once and public snapshots never expose or reacquire tokens', async () => {
+  delete globalThis.__archonApsConnection;
+  let calls=0; const credentials={clientId:'id',clientSecret:'secret'};
+  const request=async(url)=>{
+    calls++;
+    if(url.endsWith('/token')) return Response.json({access_token:'private-token',token_type:'Bearer',expires_in:120});
+    return Response.json({data:url.endsWith('/engines')?['Autodesk.AutoCAD+24_3']:[]});
+  };
+  assert.equal(getApsConnectionStatus().state,'NOT_PROBED'); assert.equal(calls,0);
+  await Promise.all([startApsConnectionProbe(credentials,request),startApsConnectionProbe(credentials,request)]);
+  assert.equal(calls,4);
+  const result=getApsConnectionStatus(); assert.equal(result.state,'VERIFIED');
+  result.autoCadEngines.length=0; assert.equal(getApsConnectionStatus().autoCadEngines.length,1);
+  assert.equal(JSON.stringify(result).includes('private-token'),false);
+  await startApsConnectionProbe(credentials,request); assert.equal(calls,4);
+  delete globalThis.__archonApsConnection;
 });
