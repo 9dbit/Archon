@@ -1,0 +1,42 @@
+import {createHash} from 'node:crypto';
+import {prepareSandboxSubmissionReview} from './sandbox-review.mjs';
+import {reserveSandboxOutputs} from './output-transport.mjs';
+
+const host='https://developer.api.autodesk.com';
+const runId='archon-layout-smoke-20260912-v1';
+const inputs={seedDwg:'archon-seed-c935e19c89274600/seed.dwg',inputJson:runId+'/archon-input.json'};
+const safeUrl=value=>{
+ let url;try{url=new URL(value);}catch{throw Error('SANDBOX_TRANSPORT_URL_INVALID');}
+ if(url.protocol!=='https:'||url.username||url.password||!/(^|\.)s3([.-][a-z0-9-]+)?\.amazonaws\.com$/.test(url.hostname))throw Error('SANDBOX_TRANSPORT_URL_INVALID');
+ return url.href;
+};
+// This validates fresh private capabilities and the exact workitem envelope, but deliberately
+// exposes no submitOnce function until output-finalization receipts are durably encrypted.
+export async function prepareSandboxTransportPreview({env=process.env,fetcher=fetch,inspectRun,reviewCheck=prepareSandboxSubmissionReview,reserveOutputs=reserveSandboxOutputs,now=Date.now}={}){
+ const review=await reviewCheck({env,fetcher,inspectRun,now});
+ if(review?.state!=='SANDBOX_SUBMISSION_REVIEW_PREPARED'||review.manifestSha256!=='11c7ecb2277e21f44365fd23cc0b301c22a60925e3df72b39f0f19e900763d8f'||review.runUnclaimed!==true||review.executionEnabled!==false)throw Error('SANDBOX_TRANSPORT_REVIEW_REQUIRED');
+ const request=async(url,options={})=>{try{return await fetcher(url,{...options,redirect:'error',signal:AbortSignal.timeout(30000)});}catch{throw Error('SANDBOX_TRANSPORT_REQUEST_FAILED');}};
+ const parse=async response=>{if(!response.ok)throw Error('SANDBOX_TRANSPORT_HTTP_'+response.status);try{return await response.json();}catch{throw Error('SANDBOX_TRANSPORT_RESPONSE_INVALID');}};
+ const auth=await parse(await request(host+'/authentication/v2/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded',Authorization:'Basic '+Buffer.from(env.APS_CLIENT_ID+':'+env.APS_CLIENT_SECRET).toString('base64')},body:new URLSearchParams({grant_type:'client_credentials',scope:'bucket:read data:read'}).toString()}));
+ if(typeof auth.access_token!=='string'||!auth.access_token.trim())throw Error('SANDBOX_TRANSPORT_TOKEN_INVALID');
+ const bucket='archon_sandbox_'+createHash('sha256').update(env.APS_CLIENT_ID).digest('hex').slice(0,24),base=host+'/oss/v2/buckets/'+bucket;
+ const get=path=>request(base+path,{headers:{Authorization:'Bearer '+auth.access_token}});
+ const owner=await parse(await get('/details'));
+ if(owner.bucketKey!==bucket||owner.bucketOwner!==env.APS_CLIENT_ID||owner.policyKey!=='transient')throw Error('SANDBOX_TRANSPORT_BUCKET_MISMATCH');
+ const args={};
+ for(const [argument,key] of Object.entries(inputs)){
+  const signed=await parse(await get('/objects/'+encodeURIComponent(key)+'/signeds3download?minutesExpiration=10'));
+  if(signed.status!=='complete')throw Error('SANDBOX_TRANSPORT_INPUT_UNAVAILABLE');
+  args[argument]={url:safeUrl(signed.url),verb:'get'};
+ }
+ const outputSession=await reserveOutputs({env,fetcher,runId,now});
+ const outputs=outputSession.workitemArguments();
+ if(Object.keys(outputs).sort().join(',')!=='outputDwg,report'||Object.values(outputs).some(a=>a?.verb!=='put'))throw Error('SANDBOX_TRANSPORT_OUTPUT_INVALID');
+ for(const [name,value] of Object.entries(outputs))args[name]={url:safeUrl(value.url),verb:'put'};
+ if(Object.keys(args).sort().join(',')!=='inputJson,outputDwg,report,seedDwg'||new Set(Object.values(args).map(a=>a.url)).size!==4)throw Error('SANDBOX_TRANSPORT_ARGUMENTS_INVALID');
+ const activityId=review.manifest?.resources?.activityId;
+ if(activityId!==env.APS_ACTIVITY_ID)throw Error('SANDBOX_TRANSPORT_ACTIVITY_MISMATCH');
+ const outputSummary=outputSession.summary(),started=now();
+ const summary=Object.freeze({state:'SANDBOX_TRANSPORT_PREVIEW_VERIFIED',runId,manifestSha256:review.manifestSha256,activityId,inputCapabilities:2,outputCapabilities:2,argumentContract:{seedDwg:'get',inputJson:'get',outputDwg:'put',report:'put'},capabilityDeadline:new Date(Math.min(started+8*60000,Date.parse(outputSummary.capabilityExpiresAt)-60000)).toISOString(),urlsExposed:false,durableFinalizationReceipt:false,submissionReady:false,executionEnabled:false,approvalGranted:false,pending:['DURABLE_ENCRYPTED_OUTPUT_FINALIZATION_RECEIPT','EXPLICIT_SANDBOX_EXECUTION_APPROVAL','POST_JOB_NATIVE_DWG_AND_ARCHON_REVIEW']});
+ return Object.freeze({summary,toJSON:()=>summary});
+}
