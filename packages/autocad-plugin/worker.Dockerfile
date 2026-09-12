@@ -16,6 +16,7 @@ COPY packages/autocad-plugin/worker.mjs packages/autocad-plugin/provision-resour
 COPY packages/autocad-plugin/sandbox-storage.mjs packages/autocad-plugin/sandbox-storage.test.mjs packages/autocad-plugin/generate-test-input.mjs ./packages/autocad-plugin/
 COPY packages/engine-adapters/src/dwg-input.ts ./packages/engine-adapters/src/dwg-input.ts
 RUN node --experimental-transform-types packages/autocad-plugin/generate-test-input.mjs
+COPY packages/autocad-plugin/output-transport.mjs packages/autocad-plugin/output-transport.test.mjs ./packages/autocad-plugin/
 COPY packages/engine-adapters/src/aps.ts ./packages/engine-adapters/src/aps.ts
 USER node
 CMD ["node", "--experimental-transform-types", "packages/autocad-plugin/worker.mjs"]

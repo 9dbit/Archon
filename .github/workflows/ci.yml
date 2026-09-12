@@ -39,6 +39,9 @@ jobs:
       - name: APS sandbox storage tests
         run: node --test packages/autocad-plugin/sandbox-storage.test.mjs
 
+      - name: APS output transport and report tests
+        run: node --test packages/autocad-plugin/output-transport.test.mjs
+
       - name: Typecheck
         run: pnpm typecheck
 
@@ -89,3 +92,6 @@ jobs:
 
       - name: Verify storage guards in runtime image
         run: docker run --rm --network none --entrypoint node archon-aps-worker --test packages/autocad-plugin/sandbox-storage.test.mjs
+
+      - name: Verify output transport guards in runtime image
+        run: docker run --rm --network none --entrypoint node archon-aps-worker --test packages/autocad-plugin/output-transport.test.mjs
