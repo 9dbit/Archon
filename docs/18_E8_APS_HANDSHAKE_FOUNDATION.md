@@ -17,7 +17,7 @@ No production ChangeSet is created/approved. No canonical object or approved ver
 Configure APS_CLIENT_ID and APS_CLIENT_SECRET privately in Railway.
 Prepare an AutoCAD Automation engine, uploaded/compiled appbundle and associated activity with aliases.
 Set APS_AUTOCAD_ENGINE, APS_ACTIVITY_ID and APS_APPBUNDLE_ID to those resource identifiers.
-APS_CALLBACK_URL is retained by the E8.1 readiness model but is not required by the two-legged service.
+APS_CALLBACK_URL remains optional for future user OAuth; app-only readiness does not require it.
 Do not put secrets in GitHub, browser responses or chat.
 After configuration, an explicitly invoked read-only handshake can verify access.
 Real execution still requires the next governed transport implementation and explicit test authorization.
