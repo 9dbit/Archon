@@ -1,24 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 import {prepareSandboxTransportPreview} from './sandbox-transport.mjs';
 const client='client',namespace='test',activityId=namespace+'.ArchonGenerateLayout+v0_1';
-const env={APS_CLIENT_ID:client,APS_CLIENT_SECRET:'private-secret',APS_ACTIVITY_ID:activityId};
+const env={APS_CLIENT_ID:client,APS_CLIENT_SECRET:'private-secret',APS_ACTIVITY_ID:activityId,ARCHON_SANDBOX_RECEIPT_KEY:'6'.repeat(64)};
 const review={state:'SANDBOX_SUBMISSION_REVIEW_PREPARED',manifestSha256:'11c7ecb2277e21f44365fd23cc0b301c22a60925e3df72b39f0f19e900763d8f',runUnclaimed:true,executionEnabled:false,manifest:{resources:{activityId}}};
 function setup(edit=()=>{}){
  const calls=[],state={input:0};
  const fetcher=async(url,options={})=>{calls.push({url,options});const path=new URL(url).pathname;
   if(path.endsWith('/token'))return Response.json({access_token:'private-token'});
-  if(path.endsWith('/details'))return Response.json({bucketKey:'archon_sandbox_'+(await import('node:crypto')).createHash('sha256').update(client).digest('hex').slice(0,24),bucketOwner:client,policyKey:'transient'});
+  if(path.endsWith('/details'))return Response.json({bucketKey:'archon_sandbox_'+createHash('sha256').update(client).digest('hex').slice(0,24),bucketOwner:client,policyKey:'transient'});
   if(path.includes('/signeds3download'))return Response.json({status:'complete',url:'https://bucket.s3.amazonaws.com/private-input-'+(++state.input)});
   throw Error('unexpected request');};
  const outputs={outputDwg:{url:'https://bucket.s3.amazonaws.com/private-output-1',verb:'put'},report:{url:'https://bucket.s3.amazonaws.com/private-output-2',verb:'put'}};edit({state,outputs});
- const reserveOutputs=async()=>({workitemArguments:()=>outputs,summary:()=>({capabilityExpiresAt:'1970-01-01T00:10:00.000Z'})});
+ const receipt={schemaVersion:1,runId:'archon-layout-smoke-20260912-v1',bucketKey:'archon_sandbox_'+createHash('sha256').update(client).digest('hex').slice(0,24),outputs:Object.entries(outputs).map(([argument])=>({argument,key:'archon-layout-smoke-20260912-v1/'+(argument==='outputDwg'?'archon-output.dwg':'archon-report.json'),uploadKey:'private-upload-'+argument})),expiresAt:'1970-01-01T00:10:00.000Z'};
+ const reserveOutputs=async()=>({workitemArguments:()=>outputs,exportFinalizationReceipt:()=>receipt,summary:()=>({bucketKey:receipt.bucketKey,capabilityExpiresAt:receipt.expiresAt})});
  return {calls,fetcher,reserveOutputs};
 }
 test('fresh four-argument transport preview is redacted and deliberately non-executable',async()=>{
  const s=setup(),result=await prepareSandboxTransportPreview({env,fetcher:s.fetcher,reserveOutputs:s.reserveOutputs,reviewCheck:async()=>review,now:()=>0});
  const summary=result.summary,serialized=JSON.stringify(result);
  assert.equal(summary.state,'SANDBOX_TRANSPORT_PREVIEW_VERIFIED');assert.equal(summary.inputCapabilities,2);assert.equal(summary.outputCapabilities,2);assert.equal(summary.submissionReady,false);assert.equal(summary.executionEnabled,false);assert.equal(summary.durableFinalizationReceipt,false);
+ assert.equal(summary.encryptedReceiptRoundTripVerified,true);
  assert.equal(result.submitOnce,undefined);assert.ok(!serialized.includes('private-'));assert.ok(!serialized.includes('token'));assert.equal(s.calls.filter(c=>c.options.method==='POST').length,1);
 });
 test('unsafe, duplicate, malformed or incorrectly bound capabilities fail closed',async()=>{

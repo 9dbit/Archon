@@ -59,10 +59,17 @@ export async function reserveSandboxOutputs({env=process.env,fetcher=fetch,runId
     if(!Array.isArray(signed.urls)||signed.urls.length!==1||typeof signed.uploadKey!=='string'||!signed.uploadKey) throw Error('OUTPUT_UPLOAD_RESPONSE_INVALID');
     resource.url=safeUrl(signed.urls[0]);resource.uploadKey=signed.uploadKey;
   }
-  let state='OUTPUT_UPLOAD_URLS_RESERVED',boundId;
+  let state='OUTPUT_UPLOAD_URLS_RESERVED',boundId,receiptExported=false;
   const summary=()=>({state,bucketKey:bucket,runId,outputObjectKeys:resources.map(r=>r.key),capabilityExpiresAt:new Date(started+10*60000).toISOString(),executionEnabled:false,approvalGranted:false});
   return Object.freeze({
     summary,toJSON:summary,
+    exportFinalizationReceipt(manifestSha256) {
+      if(receiptExported||state!=='OUTPUT_UPLOAD_URLS_RESERVED'||!/^[A-Za-z0-9_-]{1,80}$/.test(runId)||typeof manifestSha256!=='string'||!/^[a-f0-9]{64}$/.test(manifestSha256)||now()>=started+9*60000) throw Error('OUTPUT_RECEIPT_EXPORT_INVALID');
+      receiptExported=true;
+      const receipt={schemaVersion:1,runId,bucketKey:bucket,outputs:resources.map(({argument,key,uploadKey})=>({argument,key,uploadKey})),expiresAt:new Date(started+10*60000).toISOString()};
+      Object.defineProperty(receipt,'toJSON',{value:()=>({schemaVersion:1,runId,bucketKey:bucket,outputKeys:resources.map(r=>r.key),expiresAt:receipt.expiresAt,secretsRedacted:true})});
+      return Object.freeze(receipt);
+    },
     // Future submission code must independently verify governance; this grants no execution authority.
     workitemArguments() {if(now()>=started+9*60000) throw Error('OUTPUT_CAPABILITIES_EXPIRED');if(state!=='OUTPUT_UPLOAD_URLS_RESERVED') throw Error('OUTPUT_SESSION_NOT_READY');return Object.fromEntries(resources.map(r=>[r.argument,{url:r.url,verb:'put'}]));},
     bindWorkitem(id) {if(boundId||state!=='OUTPUT_UPLOAD_URLS_RESERVED'||typeof id!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(id)) throw Error('OUTPUT_WORKITEM_BIND_INVALID');boundId=id;},
