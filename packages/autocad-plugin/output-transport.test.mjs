@@ -57,3 +57,19 @@ test('report rejects stale version, changed geometry/identity, duplicate index a
   assert.throws(()=>validateOutputReport({inputBytes,reportBytes,currentVersionId:'v2'}),/STALE/);
   for(const edit of [r=>r.entities[0].geometry.positionMm[0]=500,r=>r.entities[0].revision=2,r=>r.inputSha256='a'.repeat(64),r=>r.entities[0].inputIndex=99]) {const r=structuredClone(report);edit(r);assert.throws(()=>validateOutputReport({inputBytes,reportBytes:Buffer.from(JSON.stringify(r)),currentVersionId:'v1'}));}
 });
+
+test('polyline and native dimension evidence must match coordinates and finite measurements',()=>{
+  const expected=structuredClone(input);
+  expected.entities=[
+    {kind:'POLYLINE',sourceId:'site',revision:1,layer:'ARCHON_SITE',pointsMm:[[0,0],[10000,0],[10000,8000],[0,8000]],closed:true},
+    {kind:'DIMENSION',sourceId:'site',revision:1,layer:'ARCHON_DIMS',startMm:[0,0],endMm:[10000,0],axis:'X',measuredMm:10000}
+  ];
+  const bytes=Buffer.from(JSON.stringify(expected));
+  const evidence=structuredClone(report);evidence.inputSha256=hash(bytes);
+  evidence.entities=expected.entities.map((e,i)=>({inputIndex:i,sourceId:e.sourceId,revision:e.revision,kind:e.kind,handle:(20+i).toString(16),layer:e.layer,geometry:e.kind==='POLYLINE'?{closed:true,pointsMm:e.pointsMm}:{startMm:e.startMm,endMm:e.endMm,measuredMm:e.measuredMm}}));
+  assert.equal(validateOutputReport({inputBytes:bytes,reportBytes:Buffer.from(JSON.stringify(evidence)),currentVersionId:'v1'}).entityCount,2);
+  for(const edit of [r=>r.entities[0].geometry.closed=false,r=>r.entities[0].geometry.pointsMm[1][0]=10500,r=>r.entities[1].geometry.measuredMm=9999,r=>r.entities[1].inputIndex=0,r=>r.entities[1].handle=r.entities[0].handle]) {
+    const changed=structuredClone(evidence);edit(changed);
+    assert.throws(()=>validateOutputReport({inputBytes:bytes,reportBytes:Buffer.from(JSON.stringify(changed)),currentVersionId:'v1'}));
+  }
+});
