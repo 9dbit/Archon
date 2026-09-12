@@ -16,6 +16,10 @@ export async function probeSandboxResources({env=process.env,fetcher=fetch}={}) 
  const command='"$(engine.path)\\accoreconsole.exe" /i "$(args[seedDwg].path)" /al "$(appbundles[ArchonLayoutBundle].path)" /s "$(settings[script].path)"';
  if(bundle.engine!==engine||activity.engine!==engine||JSON.stringify(activity.appbundles)!==JSON.stringify([appBundleId])||JSON.stringify(activity.commandLine)!==JSON.stringify([command])||activity.settings?.script?.value!=='ARCHONLAYOUT\n')throw Error('SANDBOX_APS_RESOURCE_MISMATCH');
  const parameters={seedDwg:['get','seed.dwg'],inputJson:['get','archon-input.json'],outputDwg:['put','archon-output.dwg'],report:['put','archon-report.json']};
- if(Object.keys(activity.parameters??{}).length!==4||Object.entries(parameters).some(([key,[verb,localName]])=>activity.parameters[key]?.verb!==verb||activity.parameters[key]?.localName!==localName||activity.parameters[key]?.required!==true||activity.parameters[key]?.zip!==false||activity.parameters[key]?.ondemand!==false))throw Error('SANDBOX_APS_PARAMETER_MISMATCH');
+ // Autodesk Parameter.gen.cs specifies false defaults and EmitDefaultValue=false
+ // for zip/ondemand. Only absence receives that default; null and other types fail.
+ // https://github.com/Autodesk-Forge/forge-api-dotnet-design.automation/blob/main/src/Autodesk.Forge.DesignAutomation/Model/Parameter.gen.cs
+ const defaultFalse=value=>value===undefined||value===false;
+ if(Object.keys(activity.parameters??{}).length!==4||Object.entries(parameters).some(([key,[verb,localName]])=>activity.parameters[key]?.verb!==verb||activity.parameters[key]?.localName!==localName||activity.parameters[key]?.required!==true||!defaultFalse(activity.parameters[key]?.zip)||!defaultFalse(activity.parameters[key]?.ondemand)))throw Error('SANDBOX_APS_PARAMETER_MISMATCH');
  return {state:'SANDBOX_APS_RESOURCE_SPEC_VERIFIED',namespace,engine,activityId,appBundleId,activityVersion:1,appBundleVersion:1,bundleBytesReverified:false,executionEnabled:false,pending:['BUNDLE_BYTE_DIGEST_RECHECK','SEED_AND_INPUT_READBACK','OUTPUT_ABSENCE_AND_FRESH_CAPABILITIES','EXPLICIT_SANDBOX_JOB_APPROVAL']};
 }
