@@ -23,7 +23,7 @@ export type DesignAlternative = {
   score: { capacity: number; circulation: number; operations: number; cost: number };
   rationale: string[];
   constraints: string[];
-  operation: ChangeOperation;
+  operations: ChangeOperation[];
 };
 
 type Props = {
@@ -77,21 +77,33 @@ function labelOf(object: CanonicalObject) {
   return typeof label === 'string' ? label.toUpperCase() : object.archonId.toUpperCase();
 }
 
-function choose(objects: CanonicalObject[], patterns: RegExp[]) {
+function choose(objects: CanonicalObject[], patterns: RegExp[], exclude = new Set<string>()) {
   for (const pattern of patterns) {
-    const match = objects.find(object => pattern.test(labelOf(object)));
+    const match = objects.find(object => !exclude.has(object.archonId) && pattern.test(labelOf(object)));
     if (match) return match;
   }
-  return objects.find(object => tuple(object.parameters?.sizeMm)) ?? null;
+  return objects.find(object => !exclude.has(object.archonId) && tuple(object.parameters?.sizeMm)) ?? null;
 }
 
-function resize(object: CanonicalObject, axis: 'widthMm' | 'depthMm', factor: number): ChangeOperation | null {
+function resize(object: CanonicalObject | null, axis: 'widthMm' | 'depthMm', factor: number): ChangeOperation | null {
+  if (!object) return null;
   const size = tuple(object.parameters?.sizeMm);
   if (!size) return null;
   const current = axis === 'widthMm' ? size[0] : size[2];
   const next = Math.max(100, Math.min(50000, Math.round(current * factor / 10) * 10));
   if (next === current) return null;
   return { type: 'UPDATE', targetId: object.archonId, payload: { [axis]: next } };
+}
+
+function compactOperations(operations: Array<ChangeOperation | null>) {
+  const seen = new Set<string>();
+  return operations.filter((operation): operation is ChangeOperation => {
+    if (!operation) return false;
+    const key = `${operation.type}:${operation.targetId}:${JSON.stringify(operation.payload)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 6);
 }
 
 function roomAreaSqM(object: CanonicalObject | null) {
@@ -105,8 +117,9 @@ function clampScore(value: number) { return Math.max(0, Math.min(100, Math.round
 function buildAlternatives(objects: CanonicalObject[], objective: Objective, brief: ProjectBrief): DesignAlternative[] {
   const model = constraintModel(brief);
   const kitchen = choose(objects, [/KITCHEN/, /DAPUR/]);
-  const dining = choose(objects, [/DINING/, /RESTAURANT/, /SEATING/]);
-  const service = choose(objects, [/BAR/, /SERVICE/, /STORAGE/]);
+  const dining = choose(objects, [/DINING/, /RESTAURANT/, /SEATING/], new Set(kitchen ? [kitchen.archonId] : []));
+  const service = choose(objects, [/BAR/, /SERVICE/, /STORAGE/], new Set([kitchen?.archonId, dining?.archonId].filter(Boolean) as string[]));
+  const outdoor = choose(objects, [/OUTDOOR/, /TERRACE/, /PATIO/], new Set([kitchen?.archonId, dining?.archonId, service?.archonId].filter(Boolean) as string[]));
   const totalKnownArea = objects.reduce((sum, object) => sum + roomAreaSqM(object), 0);
   const kitchenArea = roomAreaSqM(kitchen);
   const inferredKitchenShare = totalKnownArea > 0 ? (kitchenArea / totalKnownArea) * 100 : model.kitchenSharePct;
@@ -115,106 +128,59 @@ function buildAlternatives(objects: CanonicalObject[], objective: Objective, bri
   const circulationPenalty = model.minCirculationMm > 1200 ? 7 : model.minCirculationMm > 1000 ? 3 : 0;
   const candidates: DesignAlternative[] = [];
 
-  if (dining) {
-    const factor = objective === 'Maximize capacity' ? 1.12 + capacityPressure / 250 : 1.06 + capacityPressure / 400;
-    const operation = resize(dining, 'widthMm', factor);
-    if (operation) candidates.push({
-      id: 'capacity-forward', title: 'Capacity Forward', strategy: 'Expand primary guest zone', objective,
-      score: {
-        capacity: clampScore(86 + capacityPressure),
-        circulation: clampScore(80 - circulationPenalty - capacityPressure / 3),
-        operations: clampScore(78 - Math.max(0, kitchenPressure) / 2),
-        cost: clampScore(76 - capacityPressure / 2)
-      },
-      rationale: [
-        model.targetSeats ? `Responds to a ${model.targetSeats}-seat program target.` : 'Prioritizes usable guest-area width.',
-        model.targetGfaSqM ? `Keeps the proposal aware of target GFA ${model.targetGfaSqM.toFixed(0)} m².` : 'Uses canonical geometry as the current area envelope.',
-        'Requires governed validation before approved-state mutation.'
-      ],
-      constraints: [
-        `Circulation ≥ ${model.minCirculationMm} mm`,
-        model.siteAreaSqM ? `Site ${model.siteAreaSqM.toFixed(0)} m²` : 'Site area not specified',
-        `Levels ${model.levels}`
-      ],
-      operation
-    });
-  }
+  const capacityOps = compactOperations([
+    resize(dining, 'widthMm', objective === 'Maximize capacity' ? 1.12 + capacityPressure / 250 : 1.07 + capacityPressure / 420),
+    resize(outdoor, 'widthMm', objective === 'Maximize capacity' ? 1.07 : 1.03),
+    resize(service, 'depthMm', 1.03)
+  ]);
+  if (capacityOps.length) candidates.push({
+    id: 'capacity-forward', title: 'Capacity Forward', strategy: 'Expand guest zones while preserving service support', objective,
+    score: {capacity:clampScore(88+capacityPressure),circulation:clampScore(79-circulationPenalty-capacityPressure/3),operations:clampScore(80-Math.max(0,kitchenPressure)/2),cost:clampScore(74-capacityPressure/2)},
+    rationale:[model.targetSeats?`Coordinates guest-zone growth around a ${model.targetSeats}-seat target.`:'Coordinates indoor and outdoor guest capacity.',model.targetGfaSqM?`Keeps the combined proposal aware of target GFA ${model.targetGfaSqM.toFixed(0)} m².`:'Uses current canonical area as the envelope.',`${capacityOps.length} linked operations are reviewed as one governed ChangeSet.`],
+    constraints:[`Circulation ≥ ${model.minCirculationMm} mm`,model.siteAreaSqM?`Site ${model.siteAreaSqM.toFixed(0)} m²`:'Site area not specified',`Levels ${model.levels}`],operations:capacityOps
+  });
 
-  if (kitchen) {
-    const factor = objective === 'Improve operations' ? 1.10 + Math.max(0, kitchenPressure) / 120 : 1.05 + Math.max(0, kitchenPressure) / 180;
-    const operation = resize(kitchen, 'widthMm', factor);
-    if (operation) candidates.push({
-      id: 'operations-forward', title: 'Operations Forward', strategy: 'Strengthen back-of-house capacity', objective,
-      score: {
-        capacity: clampScore(76 - Math.max(0, kitchenPressure) / 2),
-        circulation: clampScore(84 - circulationPenalty / 2),
-        operations: clampScore(88 + Math.max(0, kitchenPressure)),
-        cost: clampScore(78 - Math.max(0, kitchenPressure) / 2)
-      },
-      rationale: [
-        `Targets kitchen share near ${model.kitchenSharePct.toFixed(0)}% of known program area.`,
-        `Current geometry implies roughly ${inferredKitchenShare.toFixed(1)}% kitchen share.`,
-        'Selection creates a proposal only, preserving the approval boundary.'
-      ],
-      constraints: [
-        `Kitchen target ${model.kitchenSharePct.toFixed(0)}%`,
-        `Circulation ≥ ${model.minCirculationMm} mm`,
-        model.targetGfaSqM ? `Target GFA ${model.targetGfaSqM.toFixed(0)} m²` : 'Target GFA not specified'
-      ],
-      operation
-    });
-  }
+  const operationsOps = compactOperations([
+    resize(kitchen, 'widthMm', objective === 'Improve operations' ? 1.10 + Math.max(0,kitchenPressure)/120 : 1.06 + Math.max(0,kitchenPressure)/180),
+    resize(service, 'depthMm', objective === 'Improve operations' ? 1.08 : 1.04),
+    resize(dining, 'widthMm', objective === 'Improve operations' ? 0.98 : 1.01)
+  ]);
+  if (operationsOps.length) candidates.push({
+    id:'operations-forward',title:'Operations Forward',strategy:'Rebalance BOH, service and dining as one move',objective,
+    score:{capacity:clampScore(75-Math.max(0,kitchenPressure)/2),circulation:clampScore(85-circulationPenalty/2),operations:clampScore(90+Math.max(0,kitchenPressure)),cost:clampScore(76-Math.max(0,kitchenPressure)/2)},
+    rationale:[`Targets kitchen share near ${model.kitchenSharePct.toFixed(0)}% of known program area.`,`Current geometry implies roughly ${inferredKitchenShare.toFixed(1)}% kitchen share.`,'Kitchen, service and dining adjustments stay atomic inside one proposal.'],
+    constraints:[`Kitchen target ${model.kitchenSharePct.toFixed(0)}%`,`Circulation ≥ ${model.minCirculationMm} mm`,model.targetGfaSqM?`Target GFA ${model.targetGfaSqM.toFixed(0)} m²`:'Target GFA not specified'],operations:operationsOps
+  });
 
-  if (service) {
-    const operation = resize(service, 'depthMm', objective === 'Balanced plan' ? 1.06 : 1.04);
-    if (operation) candidates.push({
-      id: 'balanced-flow', title: 'Balanced Flow', strategy: 'Tune service-zone depth', objective,
-      score: {
-        capacity: clampScore(82 - capacityPressure / 4),
-        circulation: clampScore(91 - circulationPenalty),
-        operations: clampScore(86 + Math.max(0, kitchenPressure) / 3),
-        cost: 82
-      },
-      rationale: [
-        'Balances guest capacity and service support with a conservative delta.',
-        `Uses ${model.minCirculationMm} mm as the current circulation constraint baseline.`,
-        'Downstream approval remains governed and immutable.'
-      ],
-      constraints: [
-        model.targetSeats ? `Target seats ${model.targetSeats}` : 'Seat target not specified',
-        `Circulation ≥ ${model.minCirculationMm} mm`,
-        `Levels ${model.levels}`
-      ],
-      operation
-    });
-  }
+  const balancedOps = compactOperations([
+    resize(dining, 'widthMm', 1.04),
+    resize(kitchen, 'widthMm', 1.04 + Math.max(0,kitchenPressure)/240),
+    resize(service, 'depthMm', 1.05),
+    resize(outdoor, 'depthMm', 1.03)
+  ]);
+  if (balancedOps.length) candidates.push({
+    id:'balanced-flow',title:'Balanced Flow',strategy:'Tune guest, BOH and service zones together',objective,
+    score:{capacity:clampScore(83-capacityPressure/5),circulation:clampScore(91-circulationPenalty),operations:clampScore(87+Math.max(0,kitchenPressure)/3),cost:82},
+    rationale:['Spreads modest geometry changes across multiple program zones instead of over-expanding one room.',`Uses ${model.minCirculationMm} mm as the circulation constraint baseline.`,`Packages ${balancedOps.length} coordinated operations for a single review and approval decision.`],
+    constraints:[model.targetSeats?`Target seats ${model.targetSeats}`:'Seat target not specified',`Circulation ≥ ${model.minCirculationMm} mm`,`Levels ${model.levels}`],operations:balancedOps
+  });
 
-  return candidates.slice(0, 3);
+  return candidates.slice(0,3);
 }
 
 export function DesignAlternatives({ objects, brief = null, disabled = false, onSelect }: Props) {
-  const [objective, setObjective] = useState<Objective>('Balanced plan');
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const alternatives = useMemo(() => buildAlternatives(objects, objective, brief), [objects, objective, brief]);
-  const model = useMemo(() => constraintModel(brief), [brief]);
-
-  async function select(alternative: DesignAlternative) {
-    setBusyId(alternative.id);
-    setError(null);
-    try { await onSelect(alternative); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'ALTERNATIVE_PROPOSAL_FAILED'); }
-    finally { setBusyId(null); }
-  }
-
+  const [objective,setObjective]=useState<Objective>('Balanced plan');
+  const [busyId,setBusyId]=useState<string|null>(null);
+  const [error,setError]=useState<string|null>(null);
+  const alternatives=useMemo(()=>buildAlternatives(objects,objective,brief),[objects,objective,brief]);
+  const model=useMemo(()=>constraintModel(brief),[brief]);
+  async function select(alternative:DesignAlternative){setBusyId(alternative.id);setError(null);try{await onSelect(alternative)}catch(cause){setError(cause instanceof Error?cause.message:'ALTERNATIVE_PROPOSAL_FAILED')}finally{setBusyId(null)}}
   return <section className="design-ai-panel">
-    <div className="design-ai-head"><div><span>AI DESIGN ENGINE · E7.2</span><h3>Brief-aware governed alternatives</h3><p>Alternatives read the project brief and canonical Building Graph together. Selecting one still creates only a proposed ChangeSet.</p></div><div className="design-objectives">{OBJECTIVES.map(item => <button key={item} className={item === objective ? 'active' : ''} onClick={() => setObjective(item)}>{item}</button>)}</div></div>
-    <div className="design-scores" style={{marginTop:10,maxWidth:720}}><Score label="Site m²" value={model.siteAreaSqM ? Math.round(model.siteAreaSqM) : '—'}/><Score label="Target GFA m²" value={model.targetGfaSqM ? Math.round(model.targetGfaSqM) : '—'}/><Score label="Target seats" value={model.targetSeats ?? '—'}/><Score label="Min circulation" value={`${model.minCirculationMm}mm`}/></div>
-    {error && <div className="design-ai-error">{error}</div>}
-    <div className="design-alternative-grid">{alternatives.length ? alternatives.map(alternative => <article key={alternative.id} className="design-alternative-card"><div><span>{alternative.strategy}</span><h4>{alternative.title}</h4></div><div className="design-scores"><Score label="Capacity" value={alternative.score.capacity}/><Score label="Circulation" value={alternative.score.circulation}/><Score label="Operations" value={alternative.score.operations}/><Score label="Cost" value={alternative.score.cost}/></div><ul>{alternative.rationale.map(item => <li key={item}>{item}</li>)}</ul><small>{alternative.constraints.join(' · ')}</small><code>{alternative.operation.type} · {alternative.operation.targetId} · {JSON.stringify(alternative.operation.payload)}</code><button disabled={disabled || Boolean(busyId)} onClick={() => void select(alternative)}>{busyId === alternative.id ? 'Creating proposal…' : disabled ? 'Resolve active ChangeSet first' : 'Select as Proposal'}</button></article>) : <div className="design-ai-empty">Canonical room geometry is required before alternatives can be generated.</div>}</div>
+    <div className="design-ai-head"><div><span>AI DESIGN ENGINE · E7.3</span><h3>Coordinated multi-operation alternatives</h3><p>Each option can coordinate several canonical objects. Selection packages the full set into one governed ChangeSet for validation and approval.</p></div><div className="design-objectives">{OBJECTIVES.map(item=><button key={item} className={item===objective?'active':''} onClick={()=>setObjective(item)}>{item}</button>)}</div></div>
+    <div className="design-scores" style={{marginTop:10,maxWidth:720}}><Score label="Site m²" value={model.siteAreaSqM?Math.round(model.siteAreaSqM):'—'}/><Score label="Target GFA m²" value={model.targetGfaSqM?Math.round(model.targetGfaSqM):'—'}/><Score label="Target seats" value={model.targetSeats??'—'}/><Score label="Min circulation" value={`${model.minCirculationMm}mm`}/></div>
+    {error&&<div className="design-ai-error">{error}</div>}
+    <div className="design-alternative-grid">{alternatives.length?alternatives.map(alternative=><article key={alternative.id} className="design-alternative-card"><div><span>{alternative.strategy}</span><h4>{alternative.title}</h4></div><div className="design-scores"><Score label="Capacity" value={alternative.score.capacity}/><Score label="Circulation" value={alternative.score.circulation}/><Score label="Operations" value={alternative.score.operations}/><Score label="Cost" value={alternative.score.cost}/></div><ul>{alternative.rationale.map(item=><li key={item}>{item}</li>)}</ul><small>{alternative.constraints.join(' · ')}</small><code>{alternative.operations.length} operations · {alternative.operations.map(operation=>operation.targetId).join(' + ')}</code><button disabled={disabled||Boolean(busyId)} onClick={()=>void select(alternative)}>{busyId===alternative.id?'Creating coordinated proposal…':disabled?'Resolve active ChangeSet first':`Select ${alternative.operations.length} operations as Proposal`}</button></article>):<div className="design-ai-empty">Canonical room geometry is required before alternatives can be generated.</div>}</div>
   </section>;
 }
 
-function Score({ label, value }: { label: string; value: number | string }) {
-  return <div><small>{label}</small><b>{value}</b></div>;
-}
+function Score({label,value}:{label:string;value:number|string}){return <div><small>{label}</small><b>{value}</b></div>}
