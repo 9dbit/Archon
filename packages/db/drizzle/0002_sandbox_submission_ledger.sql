@@ -1,4 +1,4 @@
-CREATE TABLE archon_sandbox_submissions (
+CREATE TABLE IF NOT EXISTS public.archon_sandbox_submissions (
   run_id text PRIMARY KEY CHECK (run_id ~ '^[A-Za-z0-9_-]{1,80}$'),
   manifest_sha256 text NOT NULL CHECK (manifest_sha256 ~ '^[a-f0-9]{64}$'),
   approval_reference text NOT NULL CHECK (approval_reference ~ '^[A-Za-z0-9_-]{1,128}$'),
