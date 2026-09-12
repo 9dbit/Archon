@@ -36,6 +36,9 @@ jobs:
       - name: APS resource provisioning guard tests
         run: node --test packages/autocad-plugin/provision-resources.test.mjs
 
+      - name: APS sandbox storage tests
+        run: node --test packages/autocad-plugin/sandbox-storage.test.mjs
+
       - name: Typecheck
         run: pnpm typecheck
 
@@ -83,3 +86,6 @@ jobs:
         run: docker run --rm --network none -e ARCHON_APS_WORKER_MODE=OFFLINE -e ARCHON_APS_WORKER_EXIT=1 archon-aps-worker
       - name: Verify provisioning guards in runtime image
         run: docker run --rm --network none --entrypoint node archon-aps-worker --test packages/autocad-plugin/provision-resources.test.mjs
+
+      - name: Verify storage guards in runtime image
+        run: docker run --rm --network none --entrypoint node archon-aps-worker --test packages/autocad-plugin/sandbox-storage.test.mjs

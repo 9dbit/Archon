@@ -13,6 +13,9 @@ FROM node:22-bookworm-slim
 WORKDIR /app
 COPY --from=bundle /src/artifacts ./packages/autocad-plugin/artifacts
 COPY packages/autocad-plugin/worker.mjs packages/autocad-plugin/provision-resources.mjs packages/autocad-plugin/provision-resources.test.mjs ./packages/autocad-plugin/
+COPY packages/autocad-plugin/sandbox-storage.mjs packages/autocad-plugin/sandbox-storage.test.mjs packages/autocad-plugin/generate-test-input.mjs ./packages/autocad-plugin/
+COPY packages/engine-adapters/src/dwg-input.ts ./packages/engine-adapters/src/dwg-input.ts
+RUN node --experimental-transform-types packages/autocad-plugin/generate-test-input.mjs
 COPY packages/engine-adapters/src/aps.ts ./packages/engine-adapters/src/aps.ts
 USER node
 CMD ["node", "--experimental-transform-types", "packages/autocad-plugin/worker.mjs"]
