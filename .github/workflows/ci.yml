@@ -30,6 +30,9 @@ jobs:
       - name: APS fail-closed tests
         run: node --experimental-transform-types --test packages/engine-adapters/src/aps.test.mjs
 
+      - name: DWG geometry input tests
+        run: node --experimental-transform-types --test packages/engine-adapters/src/dwg-input.test.mjs
+
       - name: Typecheck
         run: pnpm typecheck
 
