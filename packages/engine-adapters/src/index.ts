@@ -57,3 +57,6 @@ export type { ApsConfig, DwgPipelinePlan } from './aps';
 
 export { getApsConnectionStatus, startApsConnectionProbe } from './aps';
 export type { ApsDiscovery } from './aps';
+
+export { createDwgInput, serializeDwgInput } from './dwg-input';
+export type { PlanSource, PlanObject, SiteRectangle, PlanEntity, DwgInput } from './dwg-input';
