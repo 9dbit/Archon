@@ -3,99 +3,13 @@
 import type { ChangeOperation, ValidationFinding } from './changeset-bar';
 import type { CanonicalObject } from './canonical-3d-viewport';
 
-type Props = {
-  objects: CanonicalObject[];
-  operations: ChangeOperation[];
-  findings?: ValidationFinding[];
-  selectedId?: string | null;
-  onSelect?: (object: CanonicalObject | null) => void;
-  mode?: '3d' | 'layout';
-};
-
+type Props = {objects: CanonicalObject[];operations: ChangeOperation[];findings?: ValidationFinding[];selectedId?: string | null;onSelect?: (object: CanonicalObject | null) => void;mode?: '3d' | 'layout';};
 type Geometry = { position: [number, number, number]; size: [number, number, number] };
-
-type DiffRow = {
-  object: CanonicalObject;
-  before: Geometry;
-  after: Geometry;
-  operations: ChangeOperation[];
-  fields: string[];
-};
-
-function tuple(value: unknown): [number, number, number] | null {
-  return Array.isArray(value) && value.length === 3 && value.every(item => typeof item === 'number' && Number.isFinite(item))
-    ? value as [number, number, number]
-    : null;
-}
-
-function geometryOf(object: CanonicalObject): Geometry | null {
-  const position = tuple(object.parameters?.positionMm);
-  const size = tuple(object.parameters?.sizeMm);
-  return position && size ? { position: [...position], size: [...size] } : null;
-}
-
-function apply(base: Geometry, operation: ChangeOperation): Geometry {
-  const position: [number, number, number] = [...base.position];
-  const size: [number, number, number] = [...base.size];
-  if (operation.type === 'MOVE') {
-    position[0] += typeof operation.payload.deltaXmm === 'number' ? operation.payload.deltaXmm : 0;
-    position[1] += typeof operation.payload.deltaYmm === 'number' ? operation.payload.deltaYmm : 0;
-    position[2] += typeof operation.payload.deltaZmm === 'number' ? operation.payload.deltaZmm : 0;
-  }
-  if (operation.type === 'UPDATE') {
-    if (typeof operation.payload.widthMm === 'number') size[0] = operation.payload.widthMm;
-    if (typeof operation.payload.heightMm === 'number') size[1] = operation.payload.heightMm;
-    if (typeof operation.payload.depthMm === 'number') size[2] = operation.payload.depthMm;
-  }
-  return { position, size };
-}
-
-function changedFields(before: Geometry, after: Geometry) {
-  const fields: string[] = [];
-  if (before.position[0] !== after.position[0]) fields.push('X');
-  if (before.position[1] !== after.position[1]) fields.push('Y');
-  if (before.position[2] !== after.position[2]) fields.push('Z');
-  if (before.size[0] !== after.size[0]) fields.push('W');
-  if (before.size[1] !== after.size[1]) fields.push('H');
-  if (before.size[2] !== after.size[2]) fields.push('D');
-  return fields;
-}
-
-function formatTuple(value: [number, number, number]) {
-  return value.map(item => `${Math.round(item).toLocaleString()} mm`).join(' × ');
-}
-
-function labelOf(object: CanonicalObject) {
-  const label = object.parameters?.label;
-  return typeof label === 'string' ? label : object.archonId;
-}
-
-export function ChangeSetPreviewPanel({ objects, operations, findings = [], selectedId = null, onSelect, mode = '3d' }: Props) {
-  if (!operations.length) return null;
-  const rows: DiffRow[] = [];
-  for (const object of objects) {
-    const objectOperations = operations.filter(operation => operation.targetId === object.archonId);
-    if (!objectOperations.length) continue;
-    const before = geometryOf(object);
-    if (!before) continue;
-    const after = objectOperations.reduce((geometry, operation) => apply(geometry, operation), before);
-    rows.push({ object, before, after, operations: objectOperations, fields: changedFields(before, after) });
-  }
-  const pass = findings.filter(item => item.status === 'PASS').length;
-  const warning = findings.filter(item => item.status === 'WARNING').length;
-  const blocker = findings.filter(item => item.status === 'BLOCKER' || item.status === 'CRITICAL').length;
-  return <section style={{background:'#101410',border:'1px solid #263226',borderRadius:12,padding:12,margin:'10px 0 12px',color:'#e9f0e5'}}>
-    <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',marginBottom:10}}>
-      <div><small style={{opacity:.7}}>E7.4 GOVERNED PREVIEW · {mode.toUpperCase()}</small><strong style={{display:'block',fontSize:15}}>Before / After ChangeSet Diff</strong></div>
-      <div style={{display:'flex',gap:8,fontSize:12}}><span>{operations.length} ops</span><span>{rows.length} objects</span><span>{pass} ✓</span><span>{warning} ⚠</span>{blocker>0&&<span>{blocker} ⛔</span>}</div>
-    </div>
-    <div style={{display:'grid',gap:7}}>{rows.map(row=><button key={row.object.archonId} onClick={()=>onSelect?.(row.object)} style={{display:'grid',gridTemplateColumns:'minmax(130px,1fr) 1.35fr 1.35fr auto',gap:10,alignItems:'center',textAlign:'left',padding:'9px 10px',borderRadius:9,border:row.object.archonId===selectedId?'1px solid #9fe870':'1px solid #273127',background:row.object.archonId===selectedId?'#182118':'#121712',color:'inherit',cursor:onSelect?'pointer':'default'}}>
-      <div><b style={{display:'block',fontSize:12}}>{labelOf(row.object)}</b><small style={{opacity:.62}}>{row.object.archonId} · {row.operations.map(operation=>operation.type).join(' + ')}</small></div>
-      <div><small style={{opacity:.62}}>BEFORE</small><span style={{display:'block',fontSize:11}}>Pos {formatTuple(row.before.position)}</span><span style={{display:'block',fontSize:11}}>Size {formatTuple(row.before.size)}</span></div>
-      <div><small style={{opacity:.62}}>AFTER</small><span style={{display:'block',fontSize:11}}>Pos {formatTuple(row.after.position)}</span><span style={{display:'block',fontSize:11}}>Size {formatTuple(row.after.size)}</span></div>
-      <div style={{fontSize:11,whiteSpace:'nowrap'}}>{row.fields.length?`Δ ${row.fields.join(' · ')}`:'No geometric delta'}</div>
-    </button>)}</div>
-    {!rows.length&&<p style={{margin:0,fontSize:12,opacity:.7}}>The active ChangeSet has no previewable canonical geometry targets.</p>}
-    <small style={{display:'block',marginTop:9,opacity:.65}}>Preview is derived from approved canonical geometry plus proposed operations. Approved state is never mutated here.</small>
-  </section>;
-}
+type DiffRow = { object: CanonicalObject; before: Geometry; after: Geometry; operations: ChangeOperation[]; fields: string[]; };
+function tuple(value: unknown): [number, number, number] | null {return Array.isArray(value)&&value.length===3&&value.every(item=>typeof item==='number'&&Number.isFinite(item))?value as [number,number,number]:null;}
+function geometryOf(object: CanonicalObject): Geometry | null {const position=tuple(object.parameters?.positionMm);const size=tuple(object.parameters?.sizeMm);return position&&size?{position:[...position],size:[...size]}:null;}
+function apply(base: Geometry, operation: ChangeOperation): Geometry {const position:[number,number,number]=[...base.position];const size:[number,number,number]=[...base.size];if(operation.type==='MOVE'){position[0]+=typeof operation.payload.deltaXmm==='number'?operation.payload.deltaXmm:0;position[1]+=typeof operation.payload.deltaYmm==='number'?operation.payload.deltaYmm:0;position[2]+=typeof operation.payload.deltaZmm==='number'?operation.payload.deltaZmm:0;}if(operation.type==='UPDATE'){if(typeof operation.payload.widthMm==='number')size[0]=operation.payload.widthMm;if(typeof operation.payload.heightMm==='number')size[1]=operation.payload.heightMm;if(typeof operation.payload.depthMm==='number')size[2]=operation.payload.depthMm;}return {position,size};}
+function changedFields(before:Geometry,after:Geometry){const fields:string[]=[];if(before.position[0]!==after.position[0])fields.push('X');if(before.position[1]!==after.position[1])fields.push('Y');if(before.position[2]!==after.position[2])fields.push('Z');if(before.size[0]!==after.size[0])fields.push('W');if(before.size[1]!==after.size[1])fields.push('H');if(before.size[2]!==after.size[2])fields.push('D');return fields;}
+function formatTuple(value:[number,number,number]){return value.map(item=>`${Math.round(item).toLocaleString()} mm`).join(' × ');}
+function labelOf(object:CanonicalObject){const label=object.parameters?.label;return typeof label==='string'?label:object.archonId;}
+export function ChangeSetPreviewPanel({objects,operations,findings=[],selectedId=null,onSelect,mode='3d'}:Props){if(!operations.length)return null;const rows:DiffRow[]=[];for(const object of objects){const objectOperations=operations.filter(operation=>operation.targetId===object.archonId);if(!objectOperations.length)continue;const before=geometryOf(object);if(!before)continue;const after=objectOperations.reduce((geometry,operation)=>apply(geometry,operation),before);rows.push({object,before,after,operations:objectOperations,fields:changedFields(before,after)});}const pass=findings.filter(item=>item.status==='PASS').length;const warning=findings.filter(item=>item.status==='WARNING').length;const blocker=findings.filter(item=>item.status==='BLOCKER'||item.status==='CRITICAL').length;return <section id="changeset-preview" style={{background:'#101410',border:'1px solid #263226',borderRadius:12,padding:12,margin:'10px 0 12px',color:'#e9f0e5',scrollMarginTop:90}}><div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',marginBottom:10}}><div><small style={{opacity:.7}}>E7.4 GOVERNED PREVIEW · {mode.toUpperCase()}</small><strong style={{display:'block',fontSize:15}}>Before / After ChangeSet Diff</strong></div><div style={{display:'flex',gap:8,fontSize:12}}><span>{operations.length} ops</span><span>{rows.length} objects</span><span>{pass} ✓</span><span>{warning} ⚠</span>{blocker>0&&<span>{blocker} ⛔</span>}</div></div><div style={{display:'grid',gap:7}}>{rows.map(row=><button key={row.object.archonId} onClick={()=>onSelect?.(row.object)} style={{display:'grid',gridTemplateColumns:'minmax(130px,1fr) 1.35fr 1.35fr auto',gap:10,alignItems:'center',textAlign:'left',padding:'9px 10px',borderRadius:9,border:row.object.archonId===selectedId?'1px solid #9fe870':'1px solid #273127',background:row.object.archonId===selectedId?'#182118':'#121712',color:'inherit',cursor:onSelect?'pointer':'default'}}><div><b style={{display:'block',fontSize:12}}>{labelOf(row.object)}</b><small style={{opacity:.62}}>{row.object.archonId} · {row.operations.map(operation=>operation.type).join(' + ')}</small></div><div><small style={{opacity:.62}}>BEFORE</small><span style={{display:'block',fontSize:11}}>Pos {formatTuple(row.before.position)}</span><span style={{display:'block',fontSize:11}}>Size {formatTuple(row.before.size)}</span></div><div><small style={{opacity:.62}}>AFTER</small><span style={{display:'block',fontSize:11}}>Pos {formatTuple(row.after.position)}</span><span style={{display:'block',fontSize:11}}>Size {formatTuple(row.after.size)}</span></div><div style={{fontSize:11,whiteSpace:'nowrap'}}>{row.fields.length?`Δ ${row.fields.join(' · ')}`:'No geometric delta'}</div></button>)}</div>{!rows.length&&<p style={{margin:0,fontSize:12,opacity:.7}}>The active ChangeSet has no previewable canonical geometry targets.</p>}<small style={{display:'block',marginTop:9,opacity:.65}}>Validation summary belongs to this active ChangeSet. Preview derives from approved canonical geometry plus proposed operations only.</small></section>;}
