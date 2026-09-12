@@ -38,3 +38,33 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  autocad_plugin:
+    name: Compile and package AutoCAD plugin
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generate fixture from ARCHON serializer
+        run: node --experimental-transform-types packages/autocad-plugin/generate-test-input.mjs
+      - name: Validate plugin input contract
+        run: dotnet run --project packages/autocad-plugin/tests/ContractTests.csproj -- archon-contract-fixture.json
+      - name: Compile against Autodesk AutoCAD 2026 SDK
+        run: dotnet build packages/autocad-plugin/Archon.AutoCAD.csproj -c Release
+      - name: Package and inspect bundle
+        run: python packages/autocad-plugin/package_bundle.py packages/autocad-plugin/bin/Release/net8.0-windows/Archon.AutoCAD.dll
+      - name: Verify resource configuration builder
+        run: node packages/autocad-plugin/prepare-activity.mjs test_namespace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archon-autocad-bundle
+          path: packages/autocad-plugin/artifacts/*
+          if-no-files-found: error

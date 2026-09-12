@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net8.0-windows</TargetFramework><EnableWindowsTargeting>true</EnableWindowsTargeting><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><AssemblyName>Archon.AutoCAD</AssemblyName><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup>
+  <ItemGroup><Compile Include="Commands.cs"/><Compile Include="InputContract.cs"/><PackageReference Include="AutoCAD.NET" Version="25.1.0" ExcludeAssets="runtime" PrivateAssets="all"/></ItemGroup>
+</Project>
