@@ -1,0 +1,5 @@
+# The web service uses Node; the AutoCAD .NET plugin builds in Windows CI.
+providers = ["node"]
+
+[variables]
+NIXPACKS_NODE_VERSION = "22"
