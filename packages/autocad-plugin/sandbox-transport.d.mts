@@ -1,0 +1,1 @@
+export function prepareSandboxTransportPreview(options?:{env?:Record<string,string|undefined>;fetcher?:typeof fetch;inspectRun?:(runId:string)=>Promise<unknown>;reviewCheck?:(options:unknown)=>Promise<unknown>;reserveOutputs?:(options:unknown)=>Promise<unknown>;now?:()=>number}):Promise<{summary:Record<string,unknown>;toJSON:()=>Record<string,unknown>}>;

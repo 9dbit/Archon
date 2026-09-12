@@ -28,3 +28,10 @@ test('input preparation cannot accept user-supplied geometry or bypass authentic
  assert.equal((await handleSandboxOperator(req('PREPARE_REVIEWED_INPUT'),{...options,env:{}})).status,403);assert.equal(count,0);
  assert.equal((await handleSandboxOperator(req('PREPARE_REVIEWED_INPUT'),options)).status,200);assert.equal(count,1);
 });
+test('transport probe exposes only its redacted summary and cannot accept a workitem payload',async()=>{
+ let count=0;const transport=async()=>({toJSON:()=>({state:'SANDBOX_TRANSPORT_PREVIEW_VERIFIED',executionEnabled:false,urlsExposed:false}),submitOnce:()=>{throw Error('must not serialize');}});
+ const options={env:env(),transport};
+ const result=await handleSandboxOperator(req('PROBE_TRANSPORT'),options);assert.equal(result.status,200);const body=await result.json();assert.equal(body.urlsExposed,false);assert.equal(body.submitOnce,undefined);
+ const injected=new Request('https://example.test/setup',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({operation:'PROBE_TRANSPORT',arguments:{outputDwg:'attacker'}})});
+ assert.equal((await handleSandboxOperator(injected,options)).status,400);assert.equal(count,0);
+});
