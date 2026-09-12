@@ -71,3 +71,15 @@ jobs:
           name: archon-autocad-bundle
           path: packages/autocad-plugin/artifacts/*
           if-no-files-found: error
+
+  aps_worker:
+    name: Compile and verify APS worker container
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build isolated provisioning worker
+        run: docker build -f packages/autocad-plugin/worker.Dockerfile -t archon-aps-worker .
+      - name: Verify offline bundle without network or credentials
+        run: docker run --rm --network none -e ARCHON_APS_WORKER_MODE=OFFLINE -e ARCHON_APS_WORKER_EXIT=1 archon-aps-worker
+      - name: Verify provisioning guards in runtime image
+        run: docker run --rm --network none --entrypoint node archon-aps-worker --test packages/autocad-plugin/provision-resources.test.mjs
