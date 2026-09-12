@@ -10,6 +10,20 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: archon_test
+          POSTGRES_PASSWORD: archon_test
+          POSTGRES_DB: archon_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U archon_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -47,6 +61,18 @@ jobs:
 
       - name: Sandbox manifest binding tests
         run: node --test packages/autocad-plugin/sandbox-manifest.test.mjs
+
+      - name: Apply migrations to disposable PostgreSQL
+        run: pnpm --filter @archon/db db:migrate
+        env:
+          DATABASE_URL: postgres://archon_test:archon_test@localhost:5432/archon_test
+
+      - name: Durable ledger integration and submission guard tests
+        run: |
+          node --test packages/db/src/sandbox-ledger.test.mjs
+          node --test packages/autocad-plugin/sandbox-submission.test.mjs
+        env:
+          ARCHON_LEDGER_TEST_DATABASE_URL: postgres://archon_test:archon_test@localhost:5432/archon_test
 
       - name: Typecheck
         run: pnpm typecheck
