@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
+      - name: APS fail-closed tests
+        run: node --experimental-transform-types --test packages/engine-adapters/src/aps.test.mjs
+
       - name: Typecheck
         run: pnpm typecheck
 

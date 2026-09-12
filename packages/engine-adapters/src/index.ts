@@ -51,3 +51,6 @@ export const engineAdapters = {
 } satisfies Record<string, ArchonEngineAdapter>;
 
 export type EngineAdapterKey = keyof typeof engineAdapters;
+
+export { ApsAuthService, ApsAutomationService, getApsConfig, getApsDiagnostics, createDwgPipelinePlan } from './aps';
+export type { ApsConfig, DwgPipelinePlan } from './aps';
