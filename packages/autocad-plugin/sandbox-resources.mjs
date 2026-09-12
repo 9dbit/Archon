@@ -1,4 +1,5 @@
-export async function probeSandboxResources({env=process.env,fetcher=fetch}={}) {
+import {createHash} from 'node:crypto';
+export async function probeSandboxResources({env=process.env,fetcher=fetch,verifyBundle=false}={}) {
  if(!env.APS_CLIENT_ID?.trim()||!env.APS_CLIENT_SECRET?.trim())throw Error('SANDBOX_APS_CREDENTIALS_REQUIRED');
  const host='https://developer.api.autodesk.com',base=host+'/da/us-east/v3';
  const request=async(url,options={})=>{try{return await fetcher(url,{...options,redirect:'error',signal:AbortSignal.timeout(30000)});}catch{throw Error('SANDBOX_APS_REQUEST_FAILED');}};
@@ -21,5 +22,16 @@ export async function probeSandboxResources({env=process.env,fetcher=fetch}={}) 
  // https://github.com/Autodesk-Forge/forge-api-dotnet-design.automation/blob/main/src/Autodesk.Forge.DesignAutomation/Model/Parameter.gen.cs
  const defaultFalse=value=>value===undefined||value===false;
  if(Object.keys(activity.parameters??{}).length!==4||Object.entries(parameters).some(([key,[verb,localName]])=>activity.parameters[key]?.verb!==verb||activity.parameters[key]?.localName!==localName||activity.parameters[key]?.required!==true||!defaultFalse(activity.parameters[key]?.zip)||!defaultFalse(activity.parameters[key]?.ondemand)))throw Error('SANDBOX_APS_PARAMETER_MISMATCH');
- return {state:'SANDBOX_APS_RESOURCE_SPEC_VERIFIED',namespace,engine,activityId,appBundleId,activityVersion:1,appBundleVersion:1,bundleBytesReverified:false,executionEnabled:false,pending:['BUNDLE_BYTE_DIGEST_RECHECK','SEED_AND_INPUT_READBACK','OUTPUT_ABSENCE_AND_FRESH_CAPABILITIES','EXPLICIT_SANDBOX_JOB_APPROVAL']};
+ let bundleBytesReverified=false;
+ if(verifyBundle){
+  let url;try{url=new URL(bundle.package);}catch{throw Error('SANDBOX_BUNDLE_URL_INVALID');}
+  if(url.protocol!=='https:'||url.username||url.password||!/(^|\.)s3([.-][a-z0-9-]+)?\.amazonaws\.com$/.test(url.hostname))throw Error('SANDBOX_BUNDLE_URL_INVALID');
+  const response=await request(url.href); // Never forward OAuth headers to storage.
+  if(!response.ok||!response.body)throw Error('SANDBOX_BUNDLE_DOWNLOAD_FAILED');
+  const hash=createHash('sha256');let size=0;
+  for await(const chunk of response.body){size+=chunk.length;if(size>20*1024*1024)throw Error('SANDBOX_BUNDLE_SIZE_LIMIT');hash.update(chunk);}
+  if(!size||hash.digest('hex')!=='b6e8bf081b3267d87efc4c1dcee92e8aaacb3585d33a07365bc0a21487636bad')throw Error('SANDBOX_BUNDLE_DIGEST_MISMATCH');
+  bundleBytesReverified=true;
+ }
+ return {state:'SANDBOX_APS_RESOURCE_SPEC_VERIFIED',namespace,engine,activityId,appBundleId,activityVersion:1,appBundleVersion:1,bundleBytesReverified,executionEnabled:false,pending:[...(bundleBytesReverified?[]:['BUNDLE_BYTE_DIGEST_RECHECK']),'SEED_AND_INPUT_READBACK','OUTPUT_ABSENCE_AND_FRESH_CAPABILITIES','EXPLICIT_SANDBOX_JOB_APPROVAL']};
 }
