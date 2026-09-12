@@ -56,7 +56,7 @@ function buildAlternatives(objects: CanonicalObject[], objective: Objective): De
   const kitchen = choose(objects, [/KITCHEN/, /DAPUR/]);
   const dining = choose(objects, [/DINING/, /RESTAURANT/, /SEATING/]);
   const service = choose(objects, [/BAR/, /SERVICE/, /STORAGE/]);
-  const candidates: Array<DesignAlternative | null> = [];
+  const candidates: DesignAlternative[] = [];
 
   if (dining) {
     const operation = resize(dining, 'widthMm', objective === 'Maximize capacity' ? 1.12 : 1.06);
