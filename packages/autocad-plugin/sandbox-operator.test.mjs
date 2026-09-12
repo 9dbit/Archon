@@ -35,3 +35,10 @@ test('transport probe exposes only its redacted summary and cannot accept a work
  const injected=new Request('https://example.test/setup',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({operation:'PROBE_TRANSPORT',arguments:{outputDwg:'attacker'}})});
  assert.equal((await handleSandboxOperator(injected,options)).status,400);assert.equal(count,0);
 });
+test('approval issuance is an exact authenticated operation with a separate gated callback',async()=>{
+ let calls=0;const issueApproval=async()=>{calls++;throw Error('SANDBOX_APPROVAL_ISSUANCE_DISABLED');};
+ const result=await handleSandboxOperator(req('ISSUE_EXECUTION_APPROVAL'),{env:env(),issueApproval});
+ assert.equal(result.status,502);assert.equal((await result.json()).error,'SANDBOX_APPROVAL_ISSUANCE_DISABLED');assert.equal(calls,1);
+ const injected=new Request('https://example.test/setup',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({operation:'ISSUE_EXECUTION_APPROVAL',approved:true})});
+ assert.equal((await handleSandboxOperator(injected,{env:env(),issueApproval})).status,400);assert.equal(calls,1);
+});

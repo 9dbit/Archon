@@ -4,9 +4,10 @@ import {probeSandboxResources} from '../../../../../../../../packages/autocad-pl
 import {probeSandboxArtifacts,prepareReviewedSandboxInput} from '../../../../../../../../packages/autocad-plugin/sandbox-artifacts.mjs';
 import {prepareSandboxSubmissionReview} from '../../../../../../../../packages/autocad-plugin/sandbox-review.mjs';
 import {prepareSandboxTransportPreview} from '../../../../../../../../packages/autocad-plugin/sandbox-transport.mjs';
+import {issueReviewedSandboxApproval} from '../../../../../../../../packages/autocad-plugin/sandbox-approval-issuer.mjs';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 export async function POST(request:Request) {
  const inspectRun=(runId:string)=>inspectSandboxRun(process.env.DATABASE_URL??'',runId);
- return handleSandboxOperator(request,{activate:()=>activateSandboxLedger(process.env.DATABASE_URL??''),probe:()=>probeSandboxResources(),artifacts:()=>probeSandboxArtifacts(),prepareInput:()=>prepareReviewedSandboxInput(),review:()=>prepareSandboxSubmissionReview({inspectRun}),transport:()=>prepareSandboxTransportPreview({inspectRun})});
+ return handleSandboxOperator(request,{activate:()=>activateSandboxLedger(process.env.DATABASE_URL??''),probe:()=>probeSandboxResources(),artifacts:()=>probeSandboxArtifacts(),prepareInput:()=>prepareReviewedSandboxInput(),review:()=>prepareSandboxSubmissionReview({inspectRun}),transport:()=>prepareSandboxTransportPreview({inspectRun}),issueApproval:()=>issueReviewedSandboxApproval({inspectRun})});
 }

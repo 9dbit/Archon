@@ -1,0 +1,1 @@
+export function executeGovernedSandbox(options:{approvalToken:string;env?:Record<string,string|undefined>;fetcher?:typeof fetch;withStores:(work:(stores:any)=>Promise<unknown>)=>Promise<unknown>;now?:()=>number;prepareTransport?:(options:any)=>Promise<any>;submitWorkitem?:(options:any)=>Promise<{id:string}>}):Promise<unknown>;
