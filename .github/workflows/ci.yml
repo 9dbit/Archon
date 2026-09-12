@@ -42,6 +42,9 @@ jobs:
       - name: APS output transport and report tests
         run: node --test packages/autocad-plugin/output-transport.test.mjs
 
+      - name: Authenticated seed ingestion tests
+        run: node --test packages/autocad-plugin/seed-upload.test.mjs
+
       - name: Typecheck
         run: pnpm typecheck
 
