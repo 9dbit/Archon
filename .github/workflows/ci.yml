@@ -45,6 +45,9 @@ jobs:
       - name: Authenticated seed ingestion tests
         run: node --test packages/autocad-plugin/seed-upload.test.mjs
 
+      - name: Sandbox manifest binding tests
+        run: node --test packages/autocad-plugin/sandbox-manifest.test.mjs
+
       - name: Typecheck
         run: pnpm typecheck
 
