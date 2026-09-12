@@ -1,0 +1,15 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {handleSandboxOperator} from './sandbox-operator.mjs';
+const token='a'.repeat(64),env=()=>({ARCHON_SANDBOX_SETUP_ENABLED:'true',ARCHON_SANDBOX_SETUP_EXPIRES_AT:String(Date.now()+600000),ARCHON_SANDBOX_SETUP_TOKEN_SHA256:createHash('sha256').update(token).digest('hex')});
+const req=operation=>new Request('https://example.test/setup',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({operation})});
+test('disabled/expired/unauthorized operator cannot reach database or APS',async()=>{
+ for(const edit of [e=>e.ARCHON_SANDBOX_SETUP_ENABLED='false',e=>e.ARCHON_SANDBOX_SETUP_EXPIRES_AT='0',e=>e.ARCHON_SANDBOX_SETUP_TOKEN_SHA256='b'.repeat(64)]){const e=env();edit(e);const r=await handleSandboxOperator(req('ACTIVATE_LEDGER'),{env:e,activate:()=>{throw Error('must not run');}});assert.equal(r.status,403);}
+});
+test('only fixed setup operations dispatch; execution requests and provider secrets are rejected',async()=>{
+ let activations=0;const options={env:env(),activate:async()=>{activations++;return {ledgerReady:true,executionEnabled:false};},probe:async()=>{throw Error('private token and postgres URL');}};
+ assert.equal((await handleSandboxOperator(req('ACTIVATE_LEDGER'),options)).status,200);assert.equal(activations,1);
+ assert.equal((await handleSandboxOperator(req('SUBMIT_WORKITEM'),options)).status,400);
+ const failed=await handleSandboxOperator(req('PROBE_RESOURCES'),options);assert.equal(failed.status,502);assert.equal((await failed.json()).error,'SANDBOX_OPERATOR_FAILED');
+});

@@ -1,0 +1,1 @@
+export function probeSandboxResources(options?:{env?:Record<string,string|undefined>;fetcher?:typeof fetch}):Promise<{state:string;namespace:string;engine:string;activityId:string;appBundleId:string;activityVersion:1;appBundleVersion:1;bundleBytesReverified:false;executionEnabled:false;pending:string[]}>;
