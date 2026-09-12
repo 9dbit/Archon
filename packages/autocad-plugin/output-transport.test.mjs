@@ -32,6 +32,13 @@ test('reservation serializes without capability secrets and performs no workitem
   assert.equal(session.workitemArguments().outputDwg.verb,'put');
   assert.ok(!m.calls.some(c=>c.url.includes('workitems')||c.method==='PUT'||c.method==='POST'&&c.url.endsWith('signeds3upload')));
 });
+test('finalization receipt exports once, contains fixed output keys, and redacts upload keys from JSON',async()=>{
+  const m=mock(),session=await reserveSandboxOutputs({...args,fetcher:m.fetcher,now:()=>0});
+  const receipt=session.exportFinalizationReceipt('a'.repeat(64));
+  assert.equal(receipt.runId,'output-test');assert.deepEqual(receipt.outputs.map(x=>x.key),['output-test/archon-output.dwg','output-test/archon-report.json']);
+  assert.ok(receipt.outputs.every(x=>x.uploadKey==='private-key'));assert.ok(!JSON.stringify(receipt).includes('private-key'));assert.equal(JSON.parse(JSON.stringify(receipt)).secretsRedacted,true);
+  assert.throws(()=>session.exportFinalizationReceipt('a'.repeat(64)),/EXPORT_INVALID/);
+});
 test('foreign bucket/existing outputs fail before any signed upload request',async()=>{
   for(const option of [{foreign:true},{existing:true}]) {const m=mock(option);await assert.rejects(reserveSandboxOutputs({...args,fetcher:m.fetcher}));assert.ok(!m.calls.some(c=>c.url.includes('signeds3upload')));}
 });

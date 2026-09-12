@@ -1,17 +1,25 @@
 export const sandboxLedgerDDL="CREATE TABLE IF NOT EXISTS public.archon_sandbox_submissions (\n  run_id text PRIMARY KEY CHECK (run_id ~ '^[A-Za-z0-9_-]{1,80}$'),\n  manifest_sha256 text NOT NULL CHECK (manifest_sha256 ~ '^[a-f0-9]{64}$'),\n  approval_reference text NOT NULL CHECK (approval_reference ~ '^[A-Za-z0-9_-]{1,128}$'),\n  state text NOT NULL DEFAULT 'CLAIMED' CHECK (state IN ('CLAIMED','SUBMITTING','SUBMITTED','UNKNOWN')),\n  workitem_id text UNIQUE CHECK (workitem_id ~ '^[A-Za-z0-9_-]{1,128}$'),\n  diagnostic text CHECK (diagnostic ~ '^SANDBOX_[A-Z0-9_]{1,100}$'),\n  created_at timestamptz NOT NULL DEFAULT now(),\n  updated_at timestamptz NOT NULL DEFAULT now(),\n  CHECK ((state = 'SUBMITTED') = (workitem_id IS NOT NULL))\n);\n";
+export const sandboxReceiptDDL="CREATE TABLE IF NOT EXISTS public.archon_sandbox_transport_receipts (\n  run_id text PRIMARY KEY REFERENCES public.archon_sandbox_submissions(run_id),\n  manifest_sha256 text NOT NULL CHECK (manifest_sha256 ~ '^[a-f0-9]{64}$'),\n  ciphertext text NOT NULL CHECK (length(ciphertext) BETWEEN 1 AND 16384),\n  iv text NOT NULL CHECK (iv ~ '^[a-f0-9]{24}$'),\n  auth_tag text NOT NULL CHECK (auth_tag ~ '^[a-f0-9]{32}$'),\n  expires_at timestamptz NOT NULL,\n  state text NOT NULL DEFAULT 'PREPARED' CHECK (state IN ('PREPARED','FINALIZING','CONSUMED','UNKNOWN')),\n  diagnostic text CHECK (diagnostic ~ '^SANDBOX_[A-Z0-9_]{1,100}$'),\n  created_at timestamptz NOT NULL DEFAULT now(),\n  updated_at timestamptz NOT NULL DEFAULT now(),\n  CHECK ((state = 'UNKNOWN') = (diagnostic IS NOT NULL))\n);\n";
 export async function activateSandboxLedgerTransaction(transaction) {
  if(typeof transaction!=='function')throw Error('SANDBOX_DATABASE_REQUIRED');
  try {return await transaction(async query=>{
   await query('SELECT pg_advisory_xact_lock(74623051)',[]);
   await query(sandboxLedgerDDL,[]);
+  await query(sandboxReceiptDDL,[]);
   const columns=await query("SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='archon_sandbox_submissions'",[]);
   const required={run_id:'text',manifest_sha256:'text',approval_reference:'text',state:'text',workitem_id:'text',diagnostic:'text',created_at:'timestamp with time zone',updated_at:'timestamp with time zone'};
   if(columns.length!==8||columns.some(c=>required[c.column_name]!==c.data_type)||['run_id','manifest_sha256','approval_reference','state','created_at','updated_at'].some(name=>columns.find(c=>c.column_name===name)?.is_nullable!=='NO'))throw Error('SANDBOX_LEDGER_SCHEMA_MISMATCH');
   const constraints=await query("SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid='public.archon_sandbox_submissions'::regclass",[]);
   const definitions=constraints.map(c=>c.definition).join(' ');
   if(!definitions.includes('PRIMARY KEY (run_id)')||!definitions.includes('UNIQUE (workitem_id)')||!['CLAIMED','SUBMITTING','SUBMITTED','UNKNOWN','manifest_sha256','approval_reference','diagnostic','workitem_id IS NOT NULL'].every(value=>definitions.includes(value)))throw Error('SANDBOX_LEDGER_SCHEMA_MISMATCH');
+  const receiptColumns=await query("SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='archon_sandbox_transport_receipts'",[]);
+  const receiptRequired={run_id:'text',manifest_sha256:'text',ciphertext:'text',iv:'text',auth_tag:'text',expires_at:'timestamp with time zone',state:'text',diagnostic:'text',created_at:'timestamp with time zone',updated_at:'timestamp with time zone'};
+  if(receiptColumns.length!==10||receiptColumns.some(c=>receiptRequired[c.column_name]!==c.data_type)||['run_id','manifest_sha256','ciphertext','iv','auth_tag','expires_at','state','created_at','updated_at'].some(name=>receiptColumns.find(c=>c.column_name===name)?.is_nullable!=='NO'))throw Error('SANDBOX_RECEIPT_SCHEMA_MISMATCH');
+  const receiptConstraints=await query("SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid='public.archon_sandbox_transport_receipts'::regclass",[]);
+  const receiptDefinitions=receiptConstraints.map(c=>c.definition).join(' ');
+  if(!receiptDefinitions.includes('PRIMARY KEY (run_id)')||!receiptDefinitions.includes('FOREIGN KEY (run_id)')||!['PREPARED','FINALIZING','CONSUMED','UNKNOWN','manifest_sha256','ciphertext','auth_tag','diagnostic IS NOT NULL'].every(value=>receiptDefinitions.includes(value)))throw Error('SANDBOX_RECEIPT_SCHEMA_MISMATCH');
   const migrations=await query("SELECT to_regclass('public.archon_migrations') AS table_name",[]);
-  if(migrations[0]?.table_name)await query("INSERT INTO public.archon_migrations (id) VALUES ('0002_sandbox_submission_ledger') ON CONFLICT (id) DO NOTHING",[]);
-  return {state:'SANDBOX_LEDGER_SCHEMA_VERIFIED',ledgerReady:true,canonicalGraphMutated:false,executionEnabled:false};
- });}catch(error){throw Error(error.message==='SANDBOX_LEDGER_SCHEMA_MISMATCH'?error.message:'SANDBOX_LEDGER_ACTIVATION_FAILED');}
+  if(migrations[0]?.table_name){await query("INSERT INTO public.archon_migrations (id) VALUES ('0002_sandbox_submission_ledger') ON CONFLICT (id) DO NOTHING",[]);await query("INSERT INTO public.archon_migrations (id) VALUES ('0003_sandbox_transport_receipts') ON CONFLICT (id) DO NOTHING",[]);}
+  return {state:'SANDBOX_LEDGER_AND_RECEIPT_SCHEMA_VERIFIED',ledgerReady:true,receiptStoreReady:true,canonicalGraphMutated:false,executionEnabled:false};
+ });}catch(error){if(['SANDBOX_LEDGER_SCHEMA_MISMATCH','SANDBOX_RECEIPT_SCHEMA_MISMATCH'].includes(error.message))throw Error(error.message);throw Error('SANDBOX_LEDGER_ACTIVATION_FAILED');}
 }

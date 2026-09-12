@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {prepareSandboxSubmissionReview} from './sandbox-review.mjs';
 import {reserveSandboxOutputs} from './output-transport.mjs';
+import {sealSandboxReceipt,openSandboxReceipt} from './sandbox-receipt.mjs';
 
 const host='https://developer.api.autodesk.com';
 const runId='archon-layout-smoke-20260912-v1';
@@ -37,6 +38,10 @@ export async function prepareSandboxTransportPreview({env=process.env,fetcher=fe
  const activityId=review.manifest?.resources?.activityId;
  if(activityId!==env.APS_ACTIVITY_ID)throw Error('SANDBOX_TRANSPORT_ACTIVITY_MISMATCH');
  const outputSummary=outputSession.summary(),started=now();
- const summary=Object.freeze({state:'SANDBOX_TRANSPORT_PREVIEW_VERIFIED',runId,manifestSha256:review.manifestSha256,activityId,inputCapabilities:2,outputCapabilities:2,argumentContract:{seedDwg:'get',inputJson:'get',outputDwg:'put',report:'put'},capabilityDeadline:new Date(Math.min(started+8*60000,Date.parse(outputSummary.capabilityExpiresAt)-60000)).toISOString(),urlsExposed:false,durableFinalizationReceipt:false,submissionReady:false,executionEnabled:false,approvalGranted:false,pending:['DURABLE_ENCRYPTED_OUTPUT_FINALIZATION_RECEIPT','EXPLICIT_SANDBOX_EXECUTION_APPROVAL','POST_JOB_NATIVE_DWG_AND_ARCHON_REVIEW']});
+ const receipt=outputSession.exportFinalizationReceipt(review.manifestSha256);
+ const sealed=sealSandboxReceipt({receipt,runId,manifestSha256:review.manifestSha256,secret:env.ARCHON_SANDBOX_RECEIPT_KEY,now});
+ const opened=openSandboxReceipt({record:sealed,runId,manifestSha256:review.manifestSha256,secret:env.ARCHON_SANDBOX_RECEIPT_KEY,now});
+ if(opened.outputs?.length!==2||opened.bucketKey!==outputSummary.bucketKey)throw Error('SANDBOX_TRANSPORT_RECEIPT_ROUNDTRIP_FAILED');
+ const summary=Object.freeze({state:'SANDBOX_TRANSPORT_PREVIEW_VERIFIED',runId,manifestSha256:review.manifestSha256,activityId,inputCapabilities:2,outputCapabilities:2,argumentContract:{seedDwg:'get',inputJson:'get',outputDwg:'put',report:'put'},capabilityDeadline:new Date(Math.min(started+8*60000,Date.parse(outputSummary.capabilityExpiresAt)-60000)).toISOString(),urlsExposed:false,encryptedReceiptRoundTripVerified:true,durableFinalizationReceipt:false,submissionReady:false,executionEnabled:false,approvalGranted:false,pending:['PERSIST_ENCRYPTED_RECEIPT_AFTER_APPROVAL_AND_LEDGER_CLAIM','EXPLICIT_SANDBOX_EXECUTION_APPROVAL','POST_JOB_NATIVE_DWG_AND_ARCHON_REVIEW']});
  return Object.freeze({summary,toJSON:()=>summary});
 }
