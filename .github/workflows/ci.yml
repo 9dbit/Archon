@@ -67,6 +67,7 @@ jobs:
           node --test packages/autocad-plugin/sandbox-approval.test.mjs
           node --test packages/autocad-plugin/sandbox-approval-issuer.test.mjs
           node --test packages/autocad-plugin/sandbox-execution-handler.test.mjs
+          node --test packages/autocad-plugin/sandbox-lifecycle.test.mjs
           node --test packages/autocad-plugin/sandbox-review.test.mjs
           node --test packages/autocad-plugin/sandbox-transport.test.mjs
           node --test packages/autocad-plugin/sandbox-receipt.test.mjs
