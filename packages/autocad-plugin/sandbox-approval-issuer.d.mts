@@ -1,0 +1,1 @@
+export function issueReviewedSandboxApproval(options?:{env?:Record<string,string|undefined>;fetcher?:typeof fetch;inspectRun?:(runId:string)=>Promise<unknown>;reviewCheck?:(options:any)=>Promise<any>;now?:()=>number}):Promise<Record<string,unknown>>;

@@ -27,46 +27,34 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10.17.1
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
-
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
-
       - name: APS fail-closed tests
         run: node --experimental-transform-types --test packages/engine-adapters/src/aps.test.mjs
-
       - name: DWG geometry input tests
         run: node --experimental-transform-types --test packages/engine-adapters/src/dwg-input.test.mjs
-
       - name: APS resource provisioning guard tests
         run: node --test packages/autocad-plugin/provision-resources.test.mjs
-
       - name: APS sandbox storage tests
         run: node --test packages/autocad-plugin/sandbox-storage.test.mjs
-
       - name: APS output transport and report tests
         run: node --test packages/autocad-plugin/output-transport.test.mjs
-
       - name: Authenticated seed ingestion tests
         run: node --test packages/autocad-plugin/seed-upload.test.mjs
-
       - name: Sandbox manifest binding tests
         run: node --test packages/autocad-plugin/sandbox-manifest.test.mjs
-
       - name: Apply migrations to disposable PostgreSQL
         run: pnpm --filter @archon/db db:migrate
         env:
           DATABASE_URL: postgres://archon_test:archon_test@localhost:5432/archon_test
-
       - name: Durable ledger integration and submission guard tests
         run: |
           node --test packages/db/src/sandbox-ledger.test.mjs
@@ -77,15 +65,15 @@ jobs:
           node --test packages/autocad-plugin/sandbox-artifacts.test.mjs
           node --test packages/autocad-plugin/sandbox-submission.test.mjs
           node --test packages/autocad-plugin/sandbox-approval.test.mjs
+          node --test packages/autocad-plugin/sandbox-approval-issuer.test.mjs
+          node --test packages/autocad-plugin/sandbox-execution-handler.test.mjs
           node --test packages/autocad-plugin/sandbox-review.test.mjs
           node --test packages/autocad-plugin/sandbox-transport.test.mjs
           node --test packages/autocad-plugin/sandbox-receipt.test.mjs
         env:
           ARCHON_LEDGER_TEST_DATABASE_URL: postgres://archon_test:archon_test@localhost:5432/archon_test
-
       - name: Typecheck
         run: pnpm typecheck
-
       - name: Build
         run: pnpm build
 
@@ -130,9 +118,7 @@ jobs:
         run: docker run --rm --network none -e ARCHON_APS_WORKER_MODE=OFFLINE -e ARCHON_APS_WORKER_EXIT=1 archon-aps-worker
       - name: Verify provisioning guards in runtime image
         run: docker run --rm --network none --entrypoint node archon-aps-worker --test packages/autocad-plugin/provision-resources.test.mjs
-
       - name: Verify storage guards in runtime image
         run: docker run --rm --network none --entrypoint node archon-aps-worker --test packages/autocad-plugin/sandbox-storage.test.mjs
-
       - name: Verify output transport guards in runtime image
         run: docker run --rm --network none --entrypoint node archon-aps-worker --test packages/autocad-plugin/output-transport.test.mjs
