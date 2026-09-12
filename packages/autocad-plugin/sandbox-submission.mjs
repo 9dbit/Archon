@@ -3,7 +3,7 @@ import {createSandboxManifest} from './sandbox-manifest.mjs';
 import {isVerifiedSandboxApproval} from './sandbox-approval.mjs';
 const hash=b=>createHash('sha256').update(b).digest('hex');
 // Private server boundary only. There is intentionally no HTTP route or enabled runtime caller.
-export async function submitReviewedSandbox({review,inputBytes,approval,ledger,preflight,submit,executionEnabled=false,now=Date.now}) {
+export async function submitReviewedSandbox({review,inputBytes,approval,ledger,receiptStore,preflight,submit,executionEnabled=false,now=Date.now}) {
   if(executionEnabled!==true||typeof preflight!=='function'||typeof submit!=='function') throw Error('SANDBOX_EXECUTION_DISABLED');
   if(!isVerifiedSandboxApproval(approval))throw Error('SANDBOX_EXPLICIT_APPROVAL_REQUIRED');
   const m=review?.manifest?structuredClone(review.manifest):undefined;
@@ -17,15 +17,17 @@ export async function submitReviewedSandbox({review,inputBytes,approval,ledger,p
   };
   approved();
   if(!ledger||['claim','beginSubmission','markSubmitted','markUnknown'].some(k=>typeof ledger[k]!=='function')) throw Error('SANDBOX_LEDGER_REQUIRED');
+  if(!receiptStore||typeof receiptStore.storePrepared!=='function')throw Error('SANDBOX_RECEIPT_STORE_REQUIRED');
   // Preflight must recheck native resources, seed/input integrity, absent output keys and fresh capabilities.
   const freeze=value=>{if(value&&typeof value==='object'){Object.values(value).forEach(freeze);Object.freeze(value);}return value;};
   const session=await preflight(freeze(canonical));
-  if(session?.manifestSha256!==manifestSha256||typeof session.submitOnce!=='function') throw Error('SANDBOX_PREFLIGHT_REQUIRED');
+  if(session?.manifestSha256!==manifestSha256||typeof session.persistAfterClaim!=='function'||typeof session.submitOnce!=='function') throw Error('SANDBOX_PREFLIGHT_REQUIRED');
   approved();
   await ledger.claim({runId:m.runId,manifestSha256:manifestSha256,approvalReference:grant.reference});
   await ledger.beginSubmission(m.runId);
   let transportOpen=true;
   try {
+    await session.persistAfterClaim(receiptStore);
     approved();
     // Exactly one provider call. The session privately binds transport; no token/URL enters this result.
     let invoked=false;
