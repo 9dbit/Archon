@@ -7,6 +7,6 @@ import {prepareSandboxTransportPreview} from '../../../../../../../../packages/a
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 export async function POST(request:Request) {
- const inspectRun=runId=>inspectSandboxRun(process.env.DATABASE_URL??'',runId);
+ const inspectRun=(runId:string)=>inspectSandboxRun(process.env.DATABASE_URL??'',runId);
  return handleSandboxOperator(request,{activate:()=>activateSandboxLedger(process.env.DATABASE_URL??''),probe:()=>probeSandboxResources(),artifacts:()=>probeSandboxArtifacts(),prepareInput:()=>prepareReviewedSandboxInput(),review:()=>prepareSandboxSubmissionReview({inspectRun}),transport:()=>prepareSandboxTransportPreview({inspectRun})});
 }
