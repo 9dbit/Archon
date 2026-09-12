@@ -34,3 +34,17 @@ test('Autodesk omitted false defaults are accepted without allowing malformed fl
   const m=mock(edit);await assert.rejects(probeSandboxResources({env,fetcher:m.fetcher}),/PARAMETER_MISMATCH/);
  }
 });
+test('bundle byte probe rejects unsafe destinations and corrupted packages without forwarding OAuth',async()=>{
+ const m=mock();
+ for(const destination of ['http://bucket.s3.amazonaws.com/x','https://evil.example/x','https://user:pass@bucket.s3.amazonaws.com/x']){
+  const fetcher=(url,o)=>url.includes('/appbundles/')&&!url.includes('/aliases/')?Promise.resolve(Response.json({engine,package:destination})):m.fetcher(url,o);
+  await assert.rejects(probeSandboxResources({env,fetcher,verifyBundle:true}),/BUNDLE_URL_INVALID/);
+ }
+ let download;
+ const fetcher=(url,o)=>{
+  if(url.startsWith('https://bucket.s3.amazonaws.com/')){download=o;return Promise.resolve(new Response('corrupted zip'));}
+  return url.includes('/appbundles/')&&!url.includes('/aliases/')?Promise.resolve(Response.json({engine,package:'https://bucket.s3.amazonaws.com/private-signed-package'})):m.fetcher(url,o);
+ };
+ await assert.rejects(probeSandboxResources({env,fetcher,verifyBundle:true}),/BUNDLE_DIGEST_MISMATCH/);
+ assert.equal(download.headers,undefined);assert.equal(download.redirect,'error');
+});

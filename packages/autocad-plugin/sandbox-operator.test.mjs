@@ -13,3 +13,10 @@ test('only fixed setup operations dispatch; execution requests and provider secr
  assert.equal((await handleSandboxOperator(req('SUBMIT_WORKITEM'),options)).status,400);
  const failed=await handleSandboxOperator(req('PROBE_RESOURCES'),options);assert.equal(failed.status,502);assert.equal((await failed.json()).error,'SANDBOX_OPERATOR_FAILED');
 });
+test('artifact probe dispatch remains authenticated and separate from submission',async()=>{
+ let count=0;const artifacts=async()=>{count++;return {executionEnabled:false};};
+ const result=await handleSandboxOperator(req('PROBE_ARTIFACTS'),{env:env(),artifacts});
+ assert.equal(result.status,200);assert.equal(count,1);
+ const disabled={...env(),ARCHON_SANDBOX_SETUP_ENABLED:'false'};
+ assert.equal((await handleSandboxOperator(req('PROBE_ARTIFACTS'),{env:disabled,artifacts})).status,403);assert.equal(count,1);
+});
