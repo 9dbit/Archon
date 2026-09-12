@@ -20,3 +20,11 @@ test('artifact probe dispatch remains authenticated and separate from submission
  const disabled={...env(),ARCHON_SANDBOX_SETUP_ENABLED:'false'};
  assert.equal((await handleSandboxOperator(req('PROBE_ARTIFACTS'),{env:disabled,artifacts})).status,403);assert.equal(count,1);
 });
+test('input preparation cannot accept user-supplied geometry or bypass authentication',async()=>{
+ let count=0;const prepareInput=async()=>{count++;return {executionEnabled:false};};
+ const options={env:env(),prepareInput};
+ const arbitrary=new Request('https://example.test/setup',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({operation:'PREPARE_REVIEWED_INPUT',input:{production:true}})});
+ assert.equal((await handleSandboxOperator(arbitrary,options)).status,400);assert.equal(count,0);
+ assert.equal((await handleSandboxOperator(req('PREPARE_REVIEWED_INPUT'),{...options,env:{}})).status,403);assert.equal(count,0);
+ assert.equal((await handleSandboxOperator(req('PREPARE_REVIEWED_INPUT'),options)).status,200);assert.equal(count,1);
+});

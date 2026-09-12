@@ -1,11 +1,27 @@
 import {createHash} from 'node:crypto';
 import {probeSandboxResources} from './sandbox-resources.mjs';
+import {prepareSandboxStorage} from './sandbox-storage.mjs';
+import {sandboxInput} from './sandbox-fixture.mjs';
 const host='https://developer.api.autodesk.com';
 const runId='archon-layout-smoke-20260912-v1';
 const artifacts=[
  {name:'seed',key:'archon-seed-c935e19c89274600/seed.dwg',size:37894226,sha256:'17fbfaa1f29dce4444844cfbc7eb553077bef957ee3d605f4a56538597c4da80',header:'AC1024'},
  {name:'input',key:runId+'/archon-input.json',size:2108,sha256:'70f9fab1673d29d82c71ceb75e56d5b13865900b772ffccc6dd1153baa18b3ff'}
 ];
+let inputPreparationAttempted=false;
+export async function prepareReviewedSandboxInput({env=process.env,fetcher=fetch}={}){
+ const preflight=await probeSandboxArtifacts({env,fetcher});
+ if(!preflight.checks.find(c=>c.artifact==='seed')?.bytesVerified)throw Error('SANDBOX_INPUT_SEED_REQUIRED');
+ if(preflight.checks.find(c=>c.artifact==='input')?.bytesVerified)return {...preflight,inputPreparation:'ALREADY_VERIFIED_NO_WRITE'};
+ if(inputPreparationAttempted)throw Error('SANDBOX_INPUT_ALREADY_ATTEMPTED');
+ const expected=artifacts[1];
+ if(sandboxInput.length!==expected.size||createHash('sha256').update(sandboxInput).digest('hex')!==expected.sha256)throw Error('SANDBOX_INPUT_FIXTURE_MISMATCH');
+ inputPreparationAttempted=true; // Ambiguous preparation is read back before any manual retry.
+ try{
+  await prepareSandboxStorage({input:Buffer.from(sandboxInput),env,fetcher,runId});
+ }catch{throw Error('SANDBOX_INPUT_PREPARATION_FAILED_VERIFY_STORAGE');}
+ return {...await probeSandboxArtifacts({env,fetcher}),inputPreparation:'FIXED_SYNTHETIC_INPUT_UPLOADED_AND_READ_BACK'};
+}
 export async function verifyArtifactResponse(response,{size,sha256,header}){
  if(!response.ok||!response.body)throw Error('SANDBOX_ARTIFACT_DOWNLOAD_FAILED');
  const length=response.headers.get('content-length');

@@ -1,5 +1,5 @@
 import {createHash,timingSafeEqual} from 'node:crypto';
-export async function handleSandboxOperator(request,{env=process.env,activate,probe,artifacts}={}) {
+export async function handleSandboxOperator(request,{env=process.env,activate,probe,artifacts,prepareInput}={}) {
  const fail=(error,status=403)=>Response.json({error,executionEnabled:false},{status,headers:{'Cache-Control':'no-store'}});
  const expiry=Number(env.ARCHON_SANDBOX_SETUP_EXPIRES_AT);
  if(env.ARCHON_SANDBOX_SETUP_ENABLED!=='true'||!Number.isFinite(expiry)||expiry<=Date.now()||expiry>Date.now()+31*60000)return fail('SANDBOX_OPERATOR_DISABLED');
@@ -9,8 +9,8 @@ export async function handleSandboxOperator(request,{env=process.env,activate,pr
  try {
   const text=await request.text();if(text.length>1024)return fail('SANDBOX_OPERATOR_REQUEST_INVALID',400);
   const body=JSON.parse(text);
-  if(!body||Object.keys(body).length!==1||!['ACTIVATE_LEDGER','PROBE_RESOURCES','PROBE_ARTIFACTS'].includes(body.operation))return fail('SANDBOX_OPERATOR_REQUEST_INVALID',400);
-  const action=body.operation==='ACTIVATE_LEDGER'?activate:body.operation==='PROBE_ARTIFACTS'?artifacts:probe;
+  if(!body||Object.keys(body).length!==1||!['ACTIVATE_LEDGER','PROBE_RESOURCES','PROBE_ARTIFACTS','PREPARE_REVIEWED_INPUT'].includes(body.operation))return fail('SANDBOX_OPERATOR_REQUEST_INVALID',400);
+  const action=body.operation==='ACTIVATE_LEDGER'?activate:body.operation==='PROBE_ARTIFACTS'?artifacts:body.operation==='PREPARE_REVIEWED_INPUT'?prepareInput:probe;
   if(typeof action!=='function')return fail('SANDBOX_OPERATOR_ACTION_UNAVAILABLE',503);
   return Response.json(await action(),{headers:{'Cache-Control':'no-store'}});
  }catch(error){return fail(/^SANDBOX_[A-Z0-9_]+$/.test(error.message)?error.message:'SANDBOX_OPERATOR_FAILED',502);}
