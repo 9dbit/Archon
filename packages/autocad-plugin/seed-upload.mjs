@@ -49,7 +49,10 @@ export async function uploadSeed({bytes,runId,env=process.env,fetcher=fetch}) {
   const owned=await api('/details');if(owned.bucketKey!==bucket||owned.bucketOwner!==env.APS_CLIENT_ID||owned.policyKey!=='transient') throw Error('SEED_BUCKET_OWNERSHIP_MISMATCH');
   const key=runId+'/seed.dwg',object='/objects/'+encodeURIComponent(key);
   const existing=await request(host+'/oss/v2'+path+object+'/details',{headers:{Authorization:'Bearer '+token}});
-  if(existing.status!==404) throw Error('SEED_OBJECT_ALREADY_EXISTS_OR_UNAVAILABLE');
+  const verifyOnly=env.ARCHON_SEED_VERIFY_ONLY==='true';
+  if(verifyOnly&&existing.status!==200) throw Error('SEED_EXISTING_OBJECT_UNAVAILABLE');
+  if(!verifyOnly&&existing.status!==404) throw Error('SEED_OBJECT_ALREADY_EXISTS_OR_UNAVAILABLE');
+  if(!verifyOnly) {
   const parts=Math.ceil(bytes.length/partSize);
   const signed=await api(object+'/signeds3upload?parts='+parts+'&firstPart=1&minutesExpiration=30');
   if(!Array.isArray(signed.urls)||signed.urls.length!==parts||typeof signed.uploadKey!=='string'||!signed.uploadKey) throw Error('SEED_SIGNING_INVALID');
@@ -57,7 +60,21 @@ export async function uploadSeed({bytes,runId,env=process.env,fetcher=fetch}) {
     if(url.protocol!=='https:'||url.username||url.password||!/(^|\.)s3([.-][a-z0-9-]+)?\.amazonaws\.com$/.test(url.hostname)) throw Error('SEED_SIGNED_URL_INVALID');return url.href;});
   for(let index=0;index<parts;index++) {const response=await request(urls[index],{method:'PUT',body:bytes.subarray(index*partSize,Math.min((index+1)*partSize,bytes.length))});if(!response.ok) throw Error('SEED_PART_UPLOAD_HTTP_'+response.status);}
   await api(object+'/signeds3upload','POST',{uploadKey:signed.uploadKey});
+  }
   const details=await api(object+'/details');
-  if(details.size!==bytes.length||details.sha1?.toLowerCase()!==digest(bytes,'sha1')) throw Error('SEED_OSS_INTEGRITY_MISMATCH');
-  return {state:'SEED_STORED_IN_SANDBOX',bucketKey:bucket,objectKey:key,bytes:bytes.length,sha256:digest(bytes),sha1:digest(bytes,'sha1'),dwgHeader:bytes.subarray(0,6).toString('ascii'),nativeOpenVerified:false,executionEnabled:false};
+  if(details.size!==bytes.length) throw Error('SEED_OSS_SIZE_MISMATCH');
+  // OSS metadata may omit the checksum; verify the stored bytes independently.
+  const ossSha1Matches=typeof details.sha1==='string'&&details.sha1.length>0?details.sha1.toLowerCase()===digest(bytes,'sha1'):null;
+  const download=await api(object+'/signeds3download?minutesExpiration=10');
+  if(download.status!=='complete') throw Error('SEED_DOWNLOAD_NOT_COMPLETE');
+  let url;try {url=new URL(download.url);} catch {throw Error('SEED_DOWNLOAD_URL_INVALID');}
+  if(url.protocol!=='https:'||url.username||url.password||!/(^|\.)s3([.-][a-z0-9-]+)?\.amazonaws\.com$/.test(url.hostname)) throw Error('SEED_DOWNLOAD_URL_INVALID');
+  const response=await request(url.href);
+  if(!response.ok||!response.body) throw Error('SEED_DOWNLOAD_FAILED');
+  const contentLength=response.headers.get('content-length');
+  if(contentLength!==null&&Number(contentLength)!==bytes.length) throw Error('SEED_DOWNLOAD_SIZE_MISMATCH');
+  const hash=createHash('sha256');let received=0;
+  for await(const chunk of response.body) {received+=chunk.length;if(received>bytes.length||received>limit) {await response.body.cancel().catch(()=>{});throw Error('SEED_DOWNLOAD_SIZE_MISMATCH');}hash.update(chunk);}
+  if(received!==bytes.length||hash.digest('hex')!==digest(bytes)) throw Error('SEED_DOWNLOAD_DIGEST_MISMATCH');
+  return {state:'SEED_STORED_IN_SANDBOX',bucketKey:bucket,objectKey:key,bytes:bytes.length,sha256:digest(bytes),sha1:digest(bytes,'sha1'),dwgHeader:bytes.subarray(0,6).toString('ascii'),storedBytesVerified:true,ossSha1Matches,verificationMode:verifyOnly?'READ_EXISTING':'UPLOAD_AND_READBACK',nativeOpenVerified:false,executionEnabled:false};
 }
