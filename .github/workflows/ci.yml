@@ -33,6 +33,9 @@ jobs:
       - name: DWG geometry input tests
         run: node --experimental-transform-types --test packages/engine-adapters/src/dwg-input.test.mjs
 
+      - name: APS resource provisioning guard tests
+        run: node --test packages/autocad-plugin/provision-resources.test.mjs
+
       - name: Typecheck
         run: pnpm typecheck
 
