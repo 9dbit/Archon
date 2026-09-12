@@ -30,8 +30,7 @@ export function getAutoCadAdapterConfig(): AutoCadAdapterConfig {
 export function getAutoCadAdapterStatus(config = getAutoCadAdapterConfig()): AutoCadAdapterStatus {
   const missing = [
     !config.clientId ? 'APS_CLIENT_ID' : null,
-    !config.clientSecret ? 'APS_CLIENT_SECRET' : null,
-    !config.callbackUrl ? 'APS_CALLBACK_URL' : null
+    !config.clientSecret ? 'APS_CLIENT_SECRET' : null
   ].filter((value): value is string => Boolean(value));
   return {
     id: 'autocad',
@@ -58,7 +57,7 @@ export class AutoCadApsAdapter implements ArchonEngineAdapter {
     const status = getAutoCadAdapterStatus();
     return {
       jobId: job.id,
-      status: status.configured ? 'QUEUED' : 'FAILED',
+      status: 'FAILED',
       outputArtifactIds: [],
       diagnostics: [status.configured ? 'AutoCAD APS preview transport is scaffolded; remote execution is not enabled until OAuth handshake succeeds.' : status.nextAction]
     };
