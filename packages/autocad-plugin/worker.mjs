@@ -3,6 +3,7 @@ import {createHash} from 'node:crypto';
 import {createServer} from 'node:http';
 import {ApsAuthService,getApsConfig} from '../engine-adapters/src/aps.ts';
 import {prepareSandboxStorage} from './sandbox-storage.mjs';
+import {reserveSandboxOutputs} from './output-transport.mjs';
 import {provision} from './provision-resources.mjs';
 
 let status={state:'STARTING',executionEnabled:false};
@@ -14,7 +15,7 @@ const server=process.env.ARCHON_APS_WORKER_EXIT==='1'?undefined:createServer((re
   res.end(JSON.stringify(status));
 }).listen(Number(process.env.PORT??8080),'0.0.0.0');
 try {
-  if(!['OFFLINE','DISCOVER','APPLY','STORAGE_PREPARE'].includes(mode)) throw Error('WORKER_MODE_INVALID');
+  if(!['OFFLINE','DISCOVER','APPLY','STORAGE_PREPARE','OUTPUT_PROBE'].includes(mode)) throw Error('WORKER_MODE_INVALID');
   const zip=readFileSync(new URL('./artifacts/ArchonLayoutBundle.zip',import.meta.url));
   const expected=readFileSync(new URL('./artifacts/ArchonLayoutBundle.zip.sha256',import.meta.url),'utf8').split(/\s+/)[0];
   if(createHash('sha256').update(zip).digest('hex')!==expected) throw Error('WORKER_BUNDLE_DIGEST_MISMATCH');
@@ -27,14 +28,15 @@ try {
     const namespace=typeof body==='string'?body:body?.nickname;
     if(typeof namespace!=='string'||!/^[A-Za-z0-9_-]+$/.test(namespace)) throw Error('WORKER_NAMESPACE_INVALID');
     if(mode==='APPLY'&&namespace!==process.env.ARCHON_APS_EXPECTED_NAMESPACE) throw Error('WORKER_EXPECTED_NAMESPACE_MISMATCH');
-    const result=mode==='STORAGE_PREPARE'
+    const outputSession=mode==='OUTPUT_PROBE'?await reserveSandboxOutputs({}):undefined;
+    const result=outputSession?outputSession.summary():mode==='STORAGE_PREPARE'
       ? await prepareSandboxStorage({input:readFileSync(new URL('../../archon-contract-fixture.json',import.meta.url))})
       : await provision({namespace,zip,sha256:expected,apply:mode==='APPLY'});
     status={...result,state:mode==='DISCOVER'?'NAMESPACE_AND_BUNDLE_VERIFIED':result.state};
   }
 } catch(error) {
   // Only known worker/APS diagnostic codes escape; never log provider bodies or fetch exceptions.
-  const diagnostic=/^(WORKER_|APS_|OSS_)[A-Z0-9_]+$/.test(error.message)?error.message:'WORKER_PROVISIONING_FAILED';
+  const diagnostic=/^(WORKER_|APS_|OSS_|OUTPUT_)[A-Z0-9_]+$/.test(error.message)?error.message:'WORKER_PROVISIONING_FAILED';
   status={state:'FAILED',diagnostic,executionEnabled:false};
   process.exitCode=1;
 }
