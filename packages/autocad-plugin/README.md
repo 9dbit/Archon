@@ -21,3 +21,6 @@ The activity requires a seed DWG, input JSON and output storage URLs. There is n
 with real URLs or any automatic execution path in this checkpoint. Adapter submission remains blocked.
 Native load/dimension/readback and reopening saved DWG must be tested in the next explicit sandbox test.
 The plugin report is evidence for proposed reconciliation, never authority to mutate Building Graph.
+
+
+Resource provisioning: provision-resources.mjs defaults to offline dry-run, requires a trusted bundle digest, and uses explicit --apply for new resources only. See docs/22_E8_APS_RESOURCE_PROVISIONING.md. No workitems are submitted.
