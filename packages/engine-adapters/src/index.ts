@@ -1,4 +1,7 @@
 import type { ArchonEngineAdapter, EngineCapability, EngineJob, EngineJobResult } from '@archon/domain';
+import { autoCadAdapter } from './autocad';
+export { AutoCadApsAdapter, autoCadAdapter, getAutoCadAdapterConfig, getAutoCadAdapterStatus } from './autocad';
+export type { AutoCadAdapterConfig, AutoCadAdapterStatus } from './autocad';
 
 class MockAdapter implements ArchonEngineAdapter {
   constructor(
@@ -38,7 +41,7 @@ class MockAdapter implements ArchonEngineAdapter {
 }
 
 export const engineAdapters = {
-  autocad: new MockAdapter('autocad', 'AutoCAD', ['2D_DRAFTING', 'DRAWING_GENERATION', 'MODEL_EXCHANGE']),
+  autocad: autoCadAdapter,
   revit: new MockAdapter('revit', 'Revit', ['BIM_AUTHORING', 'DRAWING_GENERATION', 'MODEL_EXCHANGE']),
   sketchup: new MockAdapter('sketchup', 'SketchUp', ['3D_MODELING', 'MODEL_EXCHANGE']),
   rhino: new MockAdapter('rhino', 'Rhino / Grasshopper', ['PARAMETRIC_GEOMETRY', '3D_MODELING', 'MODEL_EXCHANGE']),
