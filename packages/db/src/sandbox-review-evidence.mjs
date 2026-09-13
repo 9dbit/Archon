@@ -8,5 +8,9 @@ export function createSandboxReviewEvidenceStore(query){
   if(evidence.length>32768)throw Error('SANDBOX_REVIEW_EVIDENCE_INVALID');const digest=createHash('sha256').update(evidence).digest('hex');
   let rows;try{rows=await query('INSERT INTO public.archon_sandbox_review_evidence (evidence_sha256,run_id,manifest_sha256,workitem_id,stage,dwg_sha256,report_sha256,evidence,approval_granted) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,false) ON CONFLICT DO NOTHING RETURNING evidence_sha256,run_id,manifest_sha256,workitem_id,stage,dwg_sha256,report_sha256,approval_granted,created_at',[digest,record.runId,record.manifestSha256,record.workitemId,record.stage,record.dwgSha256,record.reportSha256,evidence]);}catch{throw Error('SANDBOX_REVIEW_EVIDENCE_STORE_UNAVAILABLE');}
   if(rows.length!==1)throw Error('SANDBOX_REVIEW_EVIDENCE_NOT_STORED');return rows[0];
+ },async lookup(runId,stage){
+  if(!validId(runId)||!['ARTIFACTS_VALIDATED','NATIVE_REOPEN_VERIFIED'].includes(stage))throw Error('SANDBOX_REVIEW_EVIDENCE_INVALID');
+  let rows;try{rows=await query('SELECT evidence_sha256,run_id,manifest_sha256,workitem_id,stage,dwg_sha256,report_sha256,evidence,approval_granted,created_at FROM public.archon_sandbox_review_evidence WHERE run_id=$1 AND stage=$2',[runId,stage]);}catch{throw Error('SANDBOX_REVIEW_EVIDENCE_STORE_UNAVAILABLE');}
+  return rows[0]??null;
  }});
 }
