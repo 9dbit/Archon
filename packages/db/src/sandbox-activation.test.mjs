@@ -17,6 +17,7 @@ test('real activation is idempotent, keeps unrelated data, and rejects malformed
   assert.deepEqual(await sql.unsafe('SELECT count(*)::int AS count FROM archon_activation_sentinel'),before);
   await assert.rejects(sql.begin(async tx=>{
    await tx.unsafe('ALTER TABLE public.archon_sandbox_transport_receipts DROP CONSTRAINT archon_sandbox_transport_receipts_run_id_fkey');
+   await tx.unsafe('ALTER TABLE public.archon_sandbox_review_evidence DROP CONSTRAINT archon_sandbox_review_evidence_run_id_fkey');
    await tx.unsafe('ALTER TABLE public.archon_sandbox_submissions DROP CONSTRAINT archon_sandbox_submissions_pkey');
    await activateSandboxLedgerTransaction(work=>work(async(q,p)=>Array.from(await tx.unsafe(q,p))));
   }),/SCHEMA_MISMATCH/);
