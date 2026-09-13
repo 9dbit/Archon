@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {reserveSandboxOutputs,validateOutputReport} from './output-transport.mjs';
+import {reserveSandboxOutputs,validateOutputReport,finalizeSandboxArtifactsFromReceipt} from './output-transport.mjs';
 
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const input={schemaVersion:1,units:'mm',source:{projectId:'test-only',versionId:'v1',mode:'PREVIEW',level:'Ground Floor',changeSetId:'test-preview'},entities:[{kind:'TEXT',sourceId:'room',revision:1,layer:'ARCHON_ROOMS',positionMm:[0,0],text:'Kitchen'}]};
@@ -79,4 +79,17 @@ test('polyline and native dimension evidence must match coordinates and finite m
     const changed=structuredClone(evidence);edit(changed);
     assert.throws(()=>validateOutputReport({inputBytes:bytes,reportBytes:Buffer.from(JSON.stringify(changed)),currentVersionId:'v1'}));
   }
+});
+test('durable receipt finalizer completes and downloads exact outputs after restart',async()=>{
+  const m=mock(),runId='output-test',receipt={runId,bucketKey:bucket,outputs:[{argument:'outputDwg',key:runId+'/archon-output.dwg',uploadKey:'private-key'},{argument:'report',key:runId+'/archon-report.json',uploadKey:'private-key'}]};
+  const result=await finalizeSandboxArtifactsFromReceipt({receipt,workitemId:'job-1',inputBytes,currentVersionId:'v1',env:{APS_CLIENT_ID:client,APS_CLIENT_SECRET:'secret'},fetcher:m.fetcher});
+  assert.equal(result.state,'ARTIFACTS_REQUIRE_ARCHON_REVIEW');assert.equal(result.reconciliation,'PROPOSE_CHANGESET_ONLY');assert.equal(result.approvalGranted,false);assert.equal(result.nativeDwgReopenVerified,false);
+  assert.ok(!JSON.stringify(result).includes('private'));assert.equal(m.calls.filter(c=>c.method==='POST'&&c.url.endsWith('signeds3upload')).length,2);
+});
+test('durable finalizer rejects foreign receipt before OAuth and corrupt bytes before review',async()=>{
+  const receipt={runId:'output-test',bucketKey:'archon_sandbox_'+'f'.repeat(24),outputs:[]};let calls=0;
+  await assert.rejects(finalizeSandboxArtifactsFromReceipt({receipt,workitemId:'job-1',inputBytes,currentVersionId:'v1',env:{APS_CLIENT_ID:client,APS_CLIENT_SECRET:'secret'},fetcher:async()=>{calls++;}}));
+  assert.equal(calls,0);
+  const m=mock({badDwg:true}),valid={runId:'output-test',bucketKey:bucket,outputs:[{argument:'outputDwg',key:'output-test/archon-output.dwg',uploadKey:'u'},{argument:'report',key:'output-test/archon-report.json',uploadKey:'u'}]};
+  await assert.rejects(finalizeSandboxArtifactsFromReceipt({receipt:valid,workitemId:'job-1',inputBytes,currentVersionId:'v1',env:{APS_CLIENT_ID:client,APS_CLIENT_SECRET:'secret'},fetcher:m.fetcher}),/DWG_HEADER_INVALID/);
 });

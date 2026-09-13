@@ -1,6 +1,7 @@
 import {createPinnedSandboxReview} from './sandbox-review.mjs';
 import {sandboxInput} from './sandbox-fixture.mjs';
 import {openSandboxReceipt} from './sandbox-receipt.mjs';
+import {finalizeSandboxArtifactsFromReceipt} from './output-transport.mjs';
 const host='https://developer.api.autodesk.com';
 const validId=value=>typeof value==='string'&&/^[A-Za-z0-9_-]{1,128}$/.test(value);
 export async function inspectApsWorkitem({workitemId,env=process.env,fetcher=fetch}={}){
@@ -17,7 +18,7 @@ export async function inspectApsWorkitem({workitemId,env=process.env,fetcher=fet
  return Object.freeze({state:value.status==='success'?'APS_WORKITEM_SUCCEEDED':['failed','cancelled'].includes(value.status)?'APS_WORKITEM_TERMINAL_FAILURE':'APS_WORKITEM_PENDING',workitemId,status:value.status,providerReportAvailable:typeof value.reportUrl==='string',executionEnabled:false,approvalGranted:false});
 }
 const record=row=>({schemaVersion:1,runId:row.run_id,manifestSha256:row.manifest_sha256,ciphertext:row.ciphertext,iv:row.iv,authTag:row.auth_tag,expiresAt:new Date(row.expires_at).toISOString(),state:'PREPARED'});
-export async function finalizeGovernedSandbox({env=process.env,fetcher=fetch,withStores,currentVersionId,inspectWorkitem=inspectApsWorkitem,finalizeArtifacts,now=Date.now}={}){
+export async function finalizeGovernedSandbox({env=process.env,fetcher=fetch,withStores,currentVersionId,inspectWorkitem=inspectApsWorkitem,finalizeArtifacts=finalizeSandboxArtifactsFromReceipt,now=Date.now}={}){
  if(env.ARCHON_SANDBOX_FINALIZATION_ENABLED!=='true')throw Error('SANDBOX_FINALIZATION_DISABLED');
  if(typeof withStores!=='function'||typeof finalizeArtifacts!=='function'||typeof currentVersionId!=='string'||!currentVersionId)throw Error('SANDBOX_FINALIZATION_CONFIGURATION_INVALID');
  const review=createPinnedSandboxReview(env),runId=review.manifest.runId;

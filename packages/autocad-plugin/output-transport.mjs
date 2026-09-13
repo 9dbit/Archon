@@ -2,6 +2,8 @@ import {createHash,randomUUID} from 'node:crypto';
 
 const host='https://developer.api.autodesk.com';
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
+const safeOutputUrl=value=>{let url;try {url=new URL(value);} catch {throw Error('OUTPUT_SIGNED_URL_INVALID');}
+  if(url.protocol!=='https:'||url.username||url.password||!/(^|\.)s3([.-][a-z0-9-]+)?\.amazonaws\.com$/.test(url.hostname)) throw Error('OUTPUT_SIGNED_URL_INVALID');return url.href;};
 export function validateOutputReport({inputBytes,reportBytes,currentVersionId}) {
   if(!Buffer.isBuffer(inputBytes)||!Buffer.isBuffer(reportBytes)||inputBytes.length>16*1024*1024||reportBytes.length>16*1024*1024) throw Error('OUTPUT_BYTES_INVALID');
   let input,report;
@@ -29,6 +31,40 @@ export function validateOutputReport({inputBytes,reportBytes,currentVersionId}) 
   return {state:'REPORT_MATCHES_PREPARED_INPUT',entityCount:indices.size,inputSha256:hash(inputBytes),reportSha256:hash(reportBytes),approvalGranted:false,reconciliation:'PROPOSE_CHANGESET_ONLY',checklist:[{category:'identity/geometry/dimensions',status:'PASS'},{category:'saved-DWG reopen/materials/design/rules',status:'PENDING'},{category:'ARCHON review/approval',status:'PENDING'}]};
 }
 
+// Restart-safe finalizer. The encrypted durable receipt is the only source of multipart
+// upload keys; APS success alone grants no ARCHON authority.
+export async function finalizeSandboxArtifactsFromReceipt({receipt,workitemId,inputBytes,currentVersionId,env=process.env,fetcher=fetch}={}){
+  if(!receipt||!Array.isArray(receipt.outputs)||receipt.outputs.length!==2||!workitemId||!Buffer.isBuffer(inputBytes)||!env.APS_CLIENT_ID?.trim()||!env.APS_CLIENT_SECRET?.trim())throw Error('OUTPUT_FINALIZATION_CONFIGURATION_INVALID');
+  const expectedBucket='archon_sandbox_'+hash(Buffer.from(env.APS_CLIENT_ID)).slice(0,24);
+  if(receipt.bucketKey!==expectedBucket)throw Error('OUTPUT_BUCKET_OWNERSHIP_MISMATCH');
+  const request=async(url,options={})=>{try{return await fetcher(url,{...options,redirect:'error',signal:AbortSignal.timeout(30000)});}catch{throw Error('OUTPUT_REQUEST_FAILED');}};
+  const json=async response=>{try{return await response.json();}catch{throw Error('OUTPUT_RESPONSE_INVALID');}};
+  const auth=await request(host+'/authentication/v2/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded',Authorization:'Basic '+Buffer.from(env.APS_CLIENT_ID+':'+env.APS_CLIENT_SECRET).toString('base64')},body:new URLSearchParams({grant_type:'client_credentials',scope:'bucket:read data:read data:write'}).toString()});
+  if(!auth.ok)throw Error('OUTPUT_AUTH_HTTP_'+auth.status);const token=(await json(auth))?.access_token;
+  if(typeof token!=='string'||!token)throw Error('OUTPUT_TOKEN_INVALID');
+  const base=host+'/oss/v2/buckets/'+receipt.bucketKey;
+  const api=async(suffix,method='GET',body)=>{const response=await request(base+suffix,{method,headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});if(!response.ok)throw Error('OUTPUT_API_HTTP_'+response.status);return json(response);};
+  const owned=await api('/details');if(owned.bucketKey!==expectedBucket||owned.bucketOwner!==env.APS_CLIENT_ID||owned.policyKey!=='transient')throw Error('OUTPUT_BUCKET_OWNERSHIP_MISMATCH');
+  const byName=Object.fromEntries(receipt.outputs.map(value=>[value.argument,value]));
+  if(Object.keys(byName).sort().join(',')!=='outputDwg,report')throw Error('OUTPUT_RECEIPT_INVALID');
+  const contents={};
+  for(const name of ['outputDwg','report']){
+    const resource=byName[name],expectedKey=receipt.runId+'/'+(name==='outputDwg'?'archon-output.dwg':'archon-report.json');
+    if(resource?.key!==expectedKey||typeof resource.uploadKey!=='string'||!resource.uploadKey)throw Error('OUTPUT_RECEIPT_INVALID');
+    const object='/objects/'+encodeURIComponent(resource.key);
+    await api(object+'/signeds3upload','POST',{uploadKey:resource.uploadKey});
+    const details=await api(object+'/details');
+    if(!Number.isInteger(details.size)||details.size<=0||details.size>16*1024*1024)throw Error('OUTPUT_ARTIFACT_SIZE_INVALID');
+    const signed=await api(object+'/signeds3download?minutesExpiration=10');if(signed.status!=='complete')throw Error('OUTPUT_DOWNLOAD_NOT_COMPLETE');
+    const response=await request(safeOutputUrl(signed.url));if(!response.ok||!response.body)throw Error('OUTPUT_DOWNLOAD_FAILED');
+    let size=0;const chunks=[];for await(const chunk of response.body){size+=chunk.length;if(size>16*1024*1024)throw Error('OUTPUT_DOWNLOAD_SIZE_LIMIT');chunks.push(chunk);}
+    if(size!==details.size)throw Error('OUTPUT_DOWNLOAD_SIZE_MISMATCH');contents[name]=Buffer.concat(chunks);
+  }
+  if(contents.outputDwg.length<100||contents.outputDwg.subarray(0,6).toString('ascii')!=='AC1032')throw Error('OUTPUT_DWG_HEADER_INVALID');
+  const review=validateOutputReport({inputBytes,reportBytes:contents.report,currentVersionId});
+  return {state:'ARTIFACTS_REQUIRE_ARCHON_REVIEW',workitemId,dwgSha256:hash(contents.outputDwg),reportSha256:review.reportSha256,review,nativeDwgReopenVerified:false,reconciliation:'PROPOSE_CHANGESET_ONLY',approvalGranted:false,executionEnabled:false,checklist:[...review.checklist,{category:'external adapter authority',status:'NONE'}]};
+}
+
 // Private in-memory capability session. JSON serialization exposes only a redacted summary.
 export async function reserveSandboxOutputs({env=process.env,fetcher=fetch,runId=randomUUID(),now=Date.now}) {
   if(!/^[a-zA-Z0-9_-]{1,80}$/.test(runId)) throw Error('OUTPUT_RUN_ID_INVALID');
@@ -51,8 +87,7 @@ export async function reserveSandboxOutputs({env=process.env,fetcher=fetch,runId
     const response=await request(host+'/oss/v2'+path+'/objects/'+encodeURIComponent(resource.key)+'/details',{headers:{Authorization:'Bearer '+token}});
     if(response.status!==404) throw Error('OUTPUT_OBJECT_ALREADY_EXISTS_OR_UNAVAILABLE');
   }
-  const safeUrl=value=>{let url;try {url=new URL(value);} catch {throw Error('OUTPUT_SIGNED_URL_INVALID');}
-    if(url.protocol!=='https:'||url.username||url.password||!/(^|\.)s3([.-][a-z0-9-]+)?\.amazonaws\.com$/.test(url.hostname)) throw Error('OUTPUT_SIGNED_URL_INVALID');return url.href;};
+  const safeUrl=safeOutputUrl;
   const started=now();
   for(const resource of resources) {
     const signed=await api('/objects/'+encodeURIComponent(resource.key)+'/signeds3upload?parts=1&firstPart=1&minutesExpiration=10');
