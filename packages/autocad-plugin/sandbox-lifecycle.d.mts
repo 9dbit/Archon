@@ -1,2 +1,3 @@
 export function inspectApsWorkitem(options:{workitemId:string;env?:Record<string,string|undefined>;fetcher?:typeof fetch}):Promise<Record<string,unknown>>;
-export function finalizeGovernedSandbox(options:{env?:Record<string,string|undefined>;fetcher?:typeof fetch;withStores:(work:(stores:any)=>Promise<unknown>)=>Promise<unknown>;currentVersionId:string;inspectWorkitem?:(options:any)=>Promise<any>;finalizeArtifacts?:(options:any)=>Promise<any>;now?:()=>number}):Promise<unknown>;
+export function resolvePinnedSandboxSourceVersion():string;
+export function finalizeGovernedSandbox(options:{env?:Record<string,string|undefined>;fetcher?:typeof fetch;withStores:(work:(stores:any)=>Promise<unknown>)=>Promise<unknown>;resolveCurrentVersion?:()=>string|Promise<string>;inspectWorkitem?:(options:any)=>Promise<any>;finalizeArtifacts?:(options:any)=>Promise<any>;now?:()=>number}):Promise<unknown>;

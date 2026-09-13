@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {inspectApsWorkitem,finalizeGovernedSandbox} from './sandbox-lifecycle.mjs';
+import {inspectApsWorkitem,finalizeGovernedSandbox,resolvePinnedSandboxSourceVersion} from './sandbox-lifecycle.mjs';
 import {sealSandboxReceipt} from './sandbox-receipt.mjs';
 const workitemId='job-1',secret='a'.repeat(64);
 test('APS lifecycle inspection is read-only and redacts OAuth and report URLs',async()=>{
@@ -22,9 +22,10 @@ function harness(state='APS_WORKITEM_SUCCEEDED'){
  const receiptStore={claimFinalization:async()=>{calls.push('claim');return row;},markConsumed:async()=>{calls.push('consumed');},markUnknown:async()=>{calls.push('unknown');}};
  const namespace='kGcY7aMipAtRf8kS0SulmGsoiIU1E1HiGc5X40rkeE8twyps';
  const env={ARCHON_SANDBOX_FINALIZATION_ENABLED:'true',ARCHON_SANDBOX_RECEIPT_KEY:secret,APS_ACTIVITY_ID:namespace+'.ArchonGenerateLayout+v0_1',APS_APPBUNDLE_ID:namespace+'.ArchonLayoutBundle+v0_1',APS_AUTOCAD_ENGINE:'Autodesk.AutoCAD+25_1'};
- return {env,now:()=>1000,currentVersionId:'test-version',withStores:work=>work({ledger,receiptStore}),inspectWorkitem:async()=>{calls.push('inspect');return {state,workitemId,status:state==='APS_WORKITEM_SUCCEEDED'?'success':'inprogress',executionEnabled:false,approvalGranted:false};},finalizeArtifacts:async()=>{calls.push('artifacts');return {state:'ARTIFACTS_REQUIRE_ARCHON_REVIEW',approvalGranted:false,reconciliation:'PROPOSE_CHANGESET_ONLY'};},calls};
+ return {env,now:()=>1000,withStores:work=>work({ledger,receiptStore}),inspectWorkitem:async()=>{calls.push('inspect');return {state,workitemId,status:state==='APS_WORKITEM_SUCCEEDED'?'success':'inprogress',executionEnabled:false,approvalGranted:false};},finalizeArtifacts:async()=>{calls.push('artifacts');return {state:'ARTIFACTS_REQUIRE_ARCHON_REVIEW',approvalGranted:false,reconciliation:'PROPOSE_CHANGESET_ONLY'};},calls};
 }
 test('pending workitem does not claim receipt or inspect artifacts',async()=>{const h=harness('APS_WORKITEM_PENDING');const result=await finalizeGovernedSandbox(h);assert.equal(result.reconciliation,'NONE');assert.deepEqual(h.calls,['lookup','inspect']);});
 test('success claims, decrypts, validates, then consumes receipt without approval',async()=>{const h=harness();const result=await finalizeGovernedSandbox(h);assert.equal(result.approvalGranted,false);assert.deepEqual(h.calls,['lookup','inspect','claim','artifacts','consumed']);});
 test('artifact ambiguity makes receipt UNKNOWN and never grants approval',async()=>{const h=harness();h.finalizeArtifacts=async()=>{h.calls.push('artifacts');throw Error('private-url');};await assert.rejects(finalizeGovernedSandbox(h),/^Error: SANDBOX_OUTPUT_FINALIZATION_UNKNOWN$/);assert.deepEqual(h.calls,['lookup','inspect','claim','artifacts','unknown']);});
 test('finalization remains disabled before database and APS',async()=>{const h=harness();h.env.ARCHON_SANDBOX_FINALIZATION_ENABLED='false';await assert.rejects(finalizeGovernedSandbox(h),/FINALIZATION_DISABLED/);assert.deepEqual(h.calls,[]);});
+test('source resolver only exposes the pinned synthetic preview version',()=>assert.equal(resolvePinnedSandboxSourceVersion(),'test-version'));

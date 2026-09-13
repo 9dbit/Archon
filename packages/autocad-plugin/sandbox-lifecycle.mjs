@@ -18,9 +18,16 @@ export async function inspectApsWorkitem({workitemId,env=process.env,fetcher=fet
  return Object.freeze({state:value.status==='success'?'APS_WORKITEM_SUCCEEDED':['failed','cancelled'].includes(value.status)?'APS_WORKITEM_TERMINAL_FAILURE':'APS_WORKITEM_PENDING',workitemId,status:value.status,providerReportAvailable:typeof value.reportUrl==='string',executionEnabled:false,approvalGranted:false});
 }
 const record=row=>({schemaVersion:1,runId:row.run_id,manifestSha256:row.manifest_sha256,ciphertext:row.ciphertext,iv:row.iv,authTag:row.auth_tag,expiresAt:new Date(row.expires_at).toISOString(),state:'PREPARED'});
-export async function finalizeGovernedSandbox({env=process.env,fetcher=fetch,withStores,currentVersionId,inspectWorkitem=inspectApsWorkitem,finalizeArtifacts=finalizeSandboxArtifactsFromReceipt,now=Date.now}={}){
+export function resolvePinnedSandboxSourceVersion(){
+ let input;try{input=JSON.parse(sandboxInput.toString('utf8'));}catch{throw Error('SANDBOX_SOURCE_VERSION_INVALID');}
+ if(input?.source?.projectId!=='test-only'||input.source.versionId!=='test-version'||input.source.mode!=='PREVIEW'||input.source.changeSetId!=='test-preview-reference'||input.executionEnabled!==false||input.reconciliation!=='PROPOSE_CHANGESET_ONLY')throw Error('SANDBOX_SOURCE_VERSION_INVALID');
+ return input.source.versionId;
+}
+export async function finalizeGovernedSandbox({env=process.env,fetcher=fetch,withStores,resolveCurrentVersion=resolvePinnedSandboxSourceVersion,inspectWorkitem=inspectApsWorkitem,finalizeArtifacts=finalizeSandboxArtifactsFromReceipt,now=Date.now}={}){
  if(env.ARCHON_SANDBOX_FINALIZATION_ENABLED!=='true')throw Error('SANDBOX_FINALIZATION_DISABLED');
- if(typeof withStores!=='function'||typeof finalizeArtifacts!=='function'||typeof currentVersionId!=='string'||!currentVersionId)throw Error('SANDBOX_FINALIZATION_CONFIGURATION_INVALID');
+ if(typeof withStores!=='function'||typeof finalizeArtifacts!=='function'||typeof resolveCurrentVersion!=='function')throw Error('SANDBOX_FINALIZATION_CONFIGURATION_INVALID');
+ const currentVersionId=await resolveCurrentVersion();
+ if(typeof currentVersionId!=='string'||!currentVersionId)throw Error('SANDBOX_SOURCE_VERSION_INVALID');
  const review=createPinnedSandboxReview(env),runId=review.manifest.runId;
  return withStores(async({ledger,receiptStore})=>{
   const submission=await ledger.lookup(runId);
