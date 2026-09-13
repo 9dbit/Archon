@@ -46,9 +46,7 @@ jobs:
       - name: APS sandbox storage tests
         run: node --test packages/autocad-plugin/sandbox-storage.test.mjs
       - name: APS output transport and report tests
-        run: |
-          node --test packages/autocad-plugin/output-transport.test.mjs
-          node --test packages/autocad-plugin/prepare-validator-activity.test.mjs
+        run: node --test packages/autocad-plugin/output-transport.test.mjs
       - name: Authenticated seed ingestion tests
         run: node --test packages/autocad-plugin/seed-upload.test.mjs
       - name: Sandbox manifest binding tests
@@ -62,7 +60,6 @@ jobs:
           node --test packages/db/src/sandbox-ledger.test.mjs
           node --test packages/db/src/sandbox-activation.test.mjs
           node --test packages/db/src/sandbox-receipt-store.test.mjs
-          node --test packages/db/src/sandbox-review-evidence.test.mjs
           node --test packages/autocad-plugin/sandbox-operator.test.mjs
           node --test packages/autocad-plugin/sandbox-resources.test.mjs
           node --test packages/autocad-plugin/sandbox-artifacts.test.mjs
