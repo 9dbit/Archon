@@ -29,7 +29,8 @@ export async function finalizeGovernedSandbox({env=process.env,fetcher=fetch,wit
  const currentVersionId=await resolveCurrentVersion();
  if(typeof currentVersionId!=='string'||!currentVersionId)throw Error('SANDBOX_SOURCE_VERSION_INVALID');
  const review=createPinnedSandboxReview(env),runId=review.manifest.runId;
- return withStores(async({ledger,receiptStore})=>{
+ return withStores(async({ledger,receiptStore,reviewStore})=>{
+  if(!reviewStore||typeof reviewStore.store!=='function')throw Error('SANDBOX_REVIEW_EVIDENCE_STORE_REQUIRED');
   const submission=await ledger.lookup(runId);
   if(submission?.state!=='SUBMITTED'||submission.manifest_sha256!==review.manifestSha256||!validId(submission.workitem_id))throw Error('SANDBOX_SUBMITTED_RUN_REQUIRED');
   const lifecycle=await inspectWorkitem({workitemId:submission.workitem_id,env,fetcher});
@@ -40,6 +41,7 @@ export async function finalizeGovernedSandbox({env=process.env,fetcher=fetch,wit
    const receipt=openSandboxReceipt({record:record(claimed),runId,manifestSha256:review.manifestSha256,secret:env.ARCHON_SANDBOX_RECEIPT_KEY,now});
    const result=await finalizeArtifacts({receipt,workitemId:submission.workitem_id,inputBytes:Buffer.from(sandboxInput),currentVersionId,env,fetcher});
    if(result?.state!=='ARTIFACTS_REQUIRE_ARCHON_REVIEW'||result.approvalGranted!==false||result.reconciliation!=='PROPOSE_CHANGESET_ONLY')throw Error('SANDBOX_FINALIZATION_RESULT_INVALID');
+   await reviewStore.store({runId,manifestSha256:review.manifestSha256,workitemId:submission.workitem_id,stage:'ARTIFACTS_VALIDATED',dwgSha256:result.dwgSha256,reportSha256:result.reportSha256,nativeDwgReopenVerified:false,reconciliation:'PROPOSE_CHANGESET_ONLY',approvalGranted:false,checklist:result.checklist});
    await receiptStore.markConsumed(runId);
    return {...result,runId,manifestSha256:review.manifestSha256,workitemId:submission.workitem_id,executionEnabled:false,approvalGranted:false};
   }catch{try{await receiptStore.markUnknown(runId);}catch{}throw Error('SANDBOX_OUTPUT_FINALIZATION_UNKNOWN');}

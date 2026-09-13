@@ -5,6 +5,38 @@ using Autodesk.AutoCAD.Geometry;
 using Autodesk.AutoCAD.Runtime;
 namespace Archon.AutoCAD;
 public class Commands {
+  [CommandMethod("ARCHON", "ARCHONVALIDATE", CommandFlags.Modal)]
+  public void ValidateReopenedDrawing() {
+    const string reportPath="archon-reopen-report.json";
+    if(File.Exists(reportPath)) throw new InvalidDataException("ARCHON_REOPEN_REPORT_EXISTS");
+    var db=HostApplicationServices.WorkingDatabase;
+    if(db.Insunits!=UnitsValue.Millimeters) throw new InvalidDataException("ARCHON_REOPEN_UNITS_INVALID");
+    var versions=new HashSet<string>(); var entities=0;
+    using(var transaction=db.TransactionManager.StartTransaction()) {
+      var table=(BlockTable)transaction.GetObject(db.BlockTableId,OpenMode.ForRead);
+      var model=(BlockTableRecord)transaction.GetObject(table[BlockTableRecord.ModelSpace],OpenMode.ForRead);
+      foreach(ObjectId id in model) {
+        var entity=(Entity)transaction.GetObject(id,OpenMode.ForRead);
+        if(entity is not Polyline && entity is not DBText && entity is not RotatedDimension) throw new InvalidDataException("ARCHON_REOPEN_ENTITY_INVALID");
+        if(!new[]{"ARCHON_SITE","ARCHON_WALLS","ARCHON_ROOMS","ARCHON_DIMS"}.Contains(entity.Layer)) throw new InvalidDataException("ARCHON_REOPEN_LAYER_INVALID");
+        var data=entity.GetXDataForApplication("ARCHON")?.AsArray();
+        if(data is null||data.Length!=4||data[0].TypeCode!=1001||data[0].Value?.ToString()!="ARCHON"||data.Skip(1).Any(v=>v.TypeCode!=1000||string.IsNullOrWhiteSpace(v.Value?.ToString()))) throw new InvalidDataException("ARCHON_REOPEN_IDENTITY_INVALID");
+        if(!int.TryParse(data[2].Value?.ToString(),out var revision)||revision<1) throw new InvalidDataException("ARCHON_REOPEN_REVISION_INVALID");
+        versions.Add(data[3].Value!.ToString()!);
+        if(entity is Polyline line && (!line.Closed||line.NumberOfVertices!=4)) throw new InvalidDataException("ARCHON_REOPEN_GEOMETRY_INVALID");
+        if(entity is DBText text && (string.IsNullOrWhiteSpace(text.TextString)||!double.IsFinite(text.Position.X)||!double.IsFinite(text.Position.Y))) throw new InvalidDataException("ARCHON_REOPEN_TEXT_INVALID");
+        if(entity is RotatedDimension dimension && (!double.IsFinite(dimension.Measurement)||dimension.Measurement<=0)) throw new InvalidDataException("ARCHON_REOPEN_DIMENSION_INVALID");
+        entities++;
+      }
+      transaction.Commit();
+    }
+    if(entities<1||versions.Count!=1) throw new InvalidDataException("ARCHON_REOPEN_CONTENT_INVALID");
+    var report=new {schemaVersion=1,entityCount=entities,sourceVersionId=versions.Single(),nativeDwgReopenVerified=true,
+      reconciliation="PROPOSE_CHANGESET_ONLY",governanceAuthority="NONE",approvalGranted=false,
+      checklist=new[]{new {category="native DWG reopen",status="PASS"},new {category="ARCHON review/approval",status="PENDING"}}};
+    File.WriteAllText(reportPath,JsonSerializer.Serialize(report));
+  }
+
   [CommandMethod("ARCHON", "ARCHONLAYOUT", CommandFlags.Modal)]
   public void GenerateLayout() {
     // Fixed sandbox-local paths. Never modifies the open seed drawing or ARCHON state.
