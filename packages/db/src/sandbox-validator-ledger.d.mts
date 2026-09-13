@@ -1,0 +1,1 @@
+export function createSandboxValidatorLedger(query:(sql:string,params:any[])=>Promise<any[]>):{claim(value:any):Promise<any>;begin(runId:string):Promise<any>;submitted(runId:string,workitemId:string):Promise<any>;unknown(runId:string,diagnostic?:string):Promise<any>;lookup(runId:string):Promise<any>};

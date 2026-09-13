@@ -1,0 +1,5 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';import {handleSandboxValidator} from './sandbox-validator-handler.mjs';
+const token='a'.repeat(64),env={ARCHON_SANDBOX_VALIDATOR_ENDPOINT_ENABLED:'true',ARCHON_SANDBOX_VALIDATOR_ENDPOINT_EXPIRES_AT:String(Date.now()+60000),ARCHON_SANDBOX_VALIDATOR_ENDPOINT_TOKEN_SHA256:createHash('sha256').update(token).digest('hex')},req=(body='{}')=>new Request('https://archon.test/validator',{method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json','content-length':String(body.length)},body});
+test('endpoint is disabled before callback',async()=>{let calls=0;const r=await handleSandboxValidator(req(),{env:{...env,ARCHON_SANDBOX_VALIDATOR_ENDPOINT_ENABLED:'false'},execute:async()=>calls++});assert.equal(r.status,403);assert.equal(calls,0);});
+test('endpoint accepts only exact empty request',async()=>assert.equal((await handleSandboxValidator(req('{ }'),{env,execute:async()=>({})})).status,400));
+test('configured endpoint still fails closed without transport',async()=>assert.equal((await handleSandboxValidator(req(),{env})).status,503));

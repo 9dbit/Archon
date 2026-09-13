@@ -16,5 +16,6 @@ export * from './brief-service';
 export * from './sandbox-ledger.mjs';
 export * from './sandbox-receipt-store.mjs';
 export * from './sandbox-review-evidence.mjs';
+export * from './sandbox-validator-ledger.mjs';
 
 export * from './sandbox-runtime';
