@@ -19,7 +19,7 @@ export async function withSandboxGovernanceStores<T>(databaseUrl:string,work:(st
  const client=postgres(databaseUrl,{max:1,prepare:false,connect_timeout:10});
  const ledger=createSandboxSubmissionLedger(async(q,p)=>Array.from(await client.unsafe<SandboxLedgerRow[]>(q,p)));
  const receiptStore=createSandboxReceiptStore(async(q,p)=>Array.from(await client.unsafe<Record<string,unknown>[]>(q,p)));
- const reviewStore=createSandboxReviewEvidenceStore(async(q,p)=>Array.from(await client.unsafe<Record<string,unknown>[]>(q,p)));
+ const reviewStore=createSandboxReviewEvidenceStore(async(q,p)=>Array.from(await client.unsafe<Record<string,unknown>[]>(q,p as never[])));
  try{return await work({ledger,receiptStore,reviewStore});}
  finally{await client.end();}
 }
