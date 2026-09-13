@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {prepareConcreteValidatorTransport} from './sandbox-validator-transport.mjs';
+test('concrete validator transport is disabled before OAuth',async()=>{let calls=0;await assert.rejects(prepareConcreteValidatorTransport({env:{ARCHON_SANDBOX_VALIDATOR_TRANSPORT_ENABLED:'false'},fetcher:async()=>calls++}),/TRANSPORT_DISABLED/);assert.equal(calls,0);});
+test('missing credentials fail before any provider request',async()=>{let calls=0;await assert.rejects(prepareConcreteValidatorTransport({artifactEvidence:{runId:'run-1'},env:{ARCHON_SANDBOX_VALIDATOR_TRANSPORT_ENABLED:'true'},fetcher:async()=>calls++}),/CONFIGURATION_INVALID/);assert.equal(calls,0);});
