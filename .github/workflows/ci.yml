@@ -41,6 +41,8 @@ jobs:
         run: node --experimental-transform-types --test packages/engine-adapters/src/aps.test.mjs
       - name: DWG geometry input tests
         run: node --experimental-transform-types --test packages/engine-adapters/src/dwg-input.test.mjs
+      - name: Command Prompt Center sandbox tests
+        run: node --experimental-transform-types --test packages/domain/src/command-center.test.mjs
       - name: APS resource provisioning guard tests
         run: node --test packages/autocad-plugin/provision-resources.test.mjs
       - name: APS sandbox storage tests

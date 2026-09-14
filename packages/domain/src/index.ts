@@ -95,3 +95,4 @@ export interface ArchonEngineAdapter {
 }
 
 export * from './change-set';
+export * from './command-center';
