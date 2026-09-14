@@ -4,6 +4,7 @@ import { CheckCircle2, FileSearch, Loader2, LockKeyhole, MousePointer2, RefreshC
 import { useMemo, useState } from 'react';
 import type { CanonicalObject } from './canonical-3d-viewport';
 import type { ChangeOperation, LiveChangeSet } from './changeset-bar';
+import { ChangeSetPreviewPanel } from './changeset-preview-panel';
 
 type TargetCandidate = { archonId: string; label: string; objectType: string };
 type PreviewPayload = {
@@ -167,12 +168,17 @@ export function CommandPromptCenter({ projectId, objects, activeChangeSet, onPro
       {candidateNeedsReview && <div className="command-candidates"><b>Target review required</b><small>Choose the exact canonical Building Graph target, then ARCHON reruns the preview with that target ID.</small><div className="command-candidate-list">{preview.targetCandidates.map(item => <button key={item.archonId} className={selectedTargetId === item.archonId ? 'selected' : ''} onClick={() => chooseTarget(item.archonId)} disabled={busy || !projectId}><MousePointer2 size={13}/><span><b>{item.label}</b><small>{item.objectType} - {item.archonId}</small></span></button>)}</div></div>}
       {!candidateNeedsReview && preview.targetCandidates.length > 1 && <div className="command-candidates"><b>Target candidates</b>{preview.targetCandidates.map(item => <small key={item.archonId}>{item.label} - {item.archonId}</small>)}</div>}
       {reviewedOperations.length > 0 && <div className="command-operation-review"><div className="command-operation-review-head"><span><b>Editable Operation Review</b><small>These reviewed values are submitted to the governed proposal endpoint.</small></span><button onClick={resetReview}><RotateCcw size={13}/>Reset to preview</button></div>{reviewedOperations.map((operation, index) => <div className="command-operation-row" key={`${operation.targetId}-${index}`}><select value={operation.type} onChange={event => updateOperation(index, { type: event.target.value, payload: {} })}><option value="MOVE">MOVE</option><option value="UPDATE">UPDATE</option></select><select value={operation.targetId} onChange={event => updateOperation(index, { targetId: event.target.value })}>{objects.map(object => <option value={object.archonId} key={object.archonId}>{objectLabel(object)} / {object.archonId}</option>)}</select><div className="command-payload-fields">{operationKeys(operation.type).map(key => <label key={key}>{key}<input type="number" step="1" value={typeof operation.payload[key] === 'number' ? String(operation.payload[key]) : ''} onChange={event => updatePayload(index, key, event.target.value)} /></label>)}</div></div>)}{reviewErrors.length > 0 && <div className="command-review-errors">{reviewErrors.map(item => <small key={item}>{item}</small>)}</div>}</div>}
+      {reviewedOperations.length > 0 && (reviewErrors.length > 0 ?
+        <p className="geometry-diff-notice" role="status">Live diff unavailable: fix reviewed operation errors.</p> :
+        <ChangeSetPreviewPanel objects={objects} operations={reviewedOperations} variant="reviewed" mode="layout"/>
+      )}
+      <small className="geometry-diff-note">Parser preview checklist. Reviewed edits require fresh server validation.</small>
       <div className="command-checklist">{preview.checklist.map(item => <span key={item.stage} className={item.status.toLowerCase()}><b>{item.stage}</b><small>{item.status}</small></span>)}</div>
       {blockers.length > 0 && <div className="command-lock"><LockKeyhole size={15}/><span>{blockers.join(' - ')}</span></div>}
     </div>}
     <div className="command-submit-gate">
       <div className="command-submit-gate-head"><div><small>GOVERNED SUBMIT GATE</small><b>{gate.title}</b><span>{gate.detail}</span></div><strong className={gate.status.toLowerCase()}>{gate.status}</strong></div>
-      <div className="command-flow">{flow.map((item, index) => <span key={item} className={preview && index < 3 ? 'pass' : index === 4 ? 'locked' : ''}>{item}</span>)}</div>
+      <div className="command-flow">{flow.map((item, index) => <span key={item} className={preview && index < 2 ? 'pass' : index === 4 ? 'locked' : ''}>{item}</span>)}</div>
       <div className="command-resolution-actions">
         {activeChangeSet && <button onClick={focusActiveChangeSet}>Review active ChangeSet</button>}
         <button onClick={() => void refreshProjectState()} disabled={busy}><RefreshCw size={13}/>Refresh project state</button>
