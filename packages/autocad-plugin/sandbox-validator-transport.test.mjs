@@ -1,3 +1,10 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {prepareConcreteValidatorTransport} from './sandbox-validator-transport.mjs';
+import test from 'node:test';import assert from 'node:assert/strict';import {prepareConcreteValidatorTransport,submitApsValidatorWorkitem} from './sandbox-validator-transport.mjs';
 test('concrete validator transport is disabled before OAuth',async()=>{let calls=0;await assert.rejects(prepareConcreteValidatorTransport({env:{ARCHON_SANDBOX_VALIDATOR_TRANSPORT_ENABLED:'false'},fetcher:async()=>calls++}),/TRANSPORT_DISABLED/);assert.equal(calls,0);});
 test('missing credentials fail before any provider request',async()=>{let calls=0;await assert.rejects(prepareConcreteValidatorTransport({artifactEvidence:{runId:'run-1'},env:{ARCHON_SANDBOX_VALIDATOR_TRANSPORT_ENABLED:'true'},fetcher:async()=>calls++}),/CONFIGURATION_INVALID/);assert.equal(calls,0);});
+test('APS validator workitem submitter is disabled by default and validates exact envelope',async()=>{
+ const env={APS_CLIENT_ID:'client',APS_CLIENT_SECRET:'private',APS_VALIDATOR_ACTIVITY_ID:'owner.ArchonValidateDrawing+v0_1'},payload={activityId:env.APS_VALIDATOR_ACTIVITY_ID,arguments:{inputDwg:{url:'https://bucket.s3.amazonaws.com/input',verb:'get'},reopenReport:{url:'https://bucket.s3.amazonaws.com/report',verb:'put'}}};let calls=[];
+ const fetcher=async(url,options)=>{calls.push({url,options});return url.endsWith('/token')?Response.json({access_token:'private-token'}):Response.json({id:'validator-1'});};
+ await assert.rejects(submitApsValidatorWorkitem({payload,env,fetcher}),/WORKITEM_DISABLED/);assert.equal(calls.length,0);
+ for(const bad of [{...payload,activityId:'other.ArchonValidateDrawing+v0_1'},{...payload,arguments:{...payload.arguments,reopenReport:{url:'https://evil.example/report',verb:'put'}}},{...payload,arguments:{...payload.arguments,extra:{url:'https://bucket.s3.amazonaws.com/x',verb:'get'}}}]){await assert.rejects(submitApsValidatorWorkitem({payload:bad,env,fetcher,executionEnabled:true}),/PAYLOAD_INVALID/);assert.equal(calls.length,0);}
+ const result=await submitApsValidatorWorkitem({payload,env,fetcher,executionEnabled:true});assert.equal(result.id,'validator-1');assert.equal(calls.filter(c=>c.url.endsWith('/workitems')).length,1);
+});

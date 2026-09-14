@@ -71,6 +71,14 @@ jobs:
           node --test packages/autocad-plugin/sandbox-review.test.mjs
           node --test packages/autocad-plugin/sandbox-transport.test.mjs
           node --test packages/autocad-plugin/sandbox-receipt.test.mjs
+          node --test packages/autocad-plugin/prepare-validator-activity.test.mjs
+          node --test packages/autocad-plugin/sandbox-validator-handler.test.mjs
+          node --test packages/autocad-plugin/sandbox-validator-lifecycle.test.mjs
+          node --test packages/autocad-plugin/sandbox-validator-receipt.test.mjs
+          node --test packages/autocad-plugin/sandbox-validator-transport.test.mjs
+          node --test packages/autocad-plugin/sandbox-validator-execution.test.mjs
+          node --test packages/db/src/sandbox-validator-ledger.test.mjs
+          node --test packages/db/src/sandbox-validator-receipt-store.test.mjs
         env:
           ARCHON_LEDGER_TEST_DATABASE_URL: postgres://archon_test:archon_test@localhost:5432/archon_test
       - name: Typecheck
