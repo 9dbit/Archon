@@ -65,7 +65,7 @@ function targetObjects(prompt: string, objects: CommandCenterObject[], explicitT
   if (words(p, ['slab','site','boundary','batas'])) return objects.filter(object => object.objectType === 'SLAB');
   return [];
 }
-function movePayload(prompt: string, target: CommandCenterObject, mm: number) {
+function movePayload(prompt: string, target: CommandCenterObject, mm: number): Record<string, number> | null {
   if (mm > MAX_MOVE_MM) return null;
   const p = prompt.toLowerCase();
   if (words(p, ['left','kiri','west','barat'])) return { deltaXmm: -mm };
@@ -78,7 +78,7 @@ function movePayload(prompt: string, target: CommandCenterObject, mm: number) {
   if (target.archonId.includes('wall_west')) return { deltaXmm: -mm };
   return null;
 }
-function updatePayload(prompt: string, mm: number) {
+function updatePayload(prompt: string, mm: number): Record<string, number> | null {
   if (mm > MAX_DIMENSION_MM) return null;
   const p = prompt.toLowerCase();
   if (words(p, ['height','tinggi'])) return { heightMm: mm };
