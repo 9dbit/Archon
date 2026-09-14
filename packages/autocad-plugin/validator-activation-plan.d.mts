@@ -1,0 +1,31 @@
+export type ValidatorActivationPlan = {
+ schemaVersion:1;
+ checkedAt:string;
+ state:'VALIDATOR_ACTIVATION_BLOCKED'|'VALIDATOR_RESOURCE_CONFIGURED_GATES_CLOSED'|'VALIDATOR_RESOURCE_APPLY_READY'|'VALIDATOR_RESOURCE_APPLY_BLOCKED';
+ resourcePlan:{
+  scope:'VALIDATOR_ACTIVITY_ONLY';
+  state:string;
+  namespace:string|null;
+  engine:string;
+  activityId:string|null;
+  appBundleId:string|null;
+  alias:string;
+  workerModes:string[];
+  applyOperations:string[];
+  excludedOperations:string[];
+  executionEnabled:false;
+  approvalGranted:false;
+  reconciliation:'PROPOSE_CHANGESET_ONLY';
+ };
+ configuration:Record<string,boolean>;
+ gates:Record<string,unknown>;
+ checklist:Array<{id:string;status:string;action:string;evidence:string}>;
+ commandPromptCenter:Record<string,string|boolean>;
+ blockers:string[];
+ executionEnabled:false;
+ approvalGranted:false;
+ productionChangeSetApproved:false;
+ buildingGraphMutated:false;
+ realApsJobSubmitted:false;
+};
+export function createValidatorActivationPlan(options?:{env?:Record<string,string|undefined>;now?:()=>number}):ValidatorActivationPlan;
