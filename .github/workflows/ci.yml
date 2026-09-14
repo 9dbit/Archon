@@ -73,6 +73,7 @@ jobs:
           node --test packages/autocad-plugin/sandbox-receipt.test.mjs
           node --test packages/autocad-plugin/prepare-validator-activity.test.mjs
           node --test packages/autocad-plugin/provision-validator-activity.test.mjs
+          node --test packages/autocad-plugin/validator-activation-plan.test.mjs
           node --test packages/autocad-plugin/sandbox-validator-handler.test.mjs
           node --test packages/autocad-plugin/sandbox-validator-lifecycle.test.mjs
           node --test packages/autocad-plugin/sandbox-validator-receipt.test.mjs
