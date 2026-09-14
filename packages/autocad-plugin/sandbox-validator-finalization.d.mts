@@ -1,0 +1,1 @@
+export function finalizeGovernedSandboxValidator(options:{env?:Record<string,string|undefined>;fetcher?:typeof fetch;withStores:(work:(stores:any)=>Promise<unknown>)=>Promise<unknown>;resolveCurrentVersion?:()=>string|Promise<string>;inspectWorkitem?:(options:any)=>Promise<any>;finalizeReport?:(options:any)=>Promise<any>;now?:()=>number}):Promise<unknown>;

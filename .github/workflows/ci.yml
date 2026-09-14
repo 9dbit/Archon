@@ -72,11 +72,15 @@ jobs:
           node --test packages/autocad-plugin/sandbox-transport.test.mjs
           node --test packages/autocad-plugin/sandbox-receipt.test.mjs
           node --test packages/autocad-plugin/prepare-validator-activity.test.mjs
+          node --test packages/autocad-plugin/provision-validator-activity.test.mjs
           node --test packages/autocad-plugin/sandbox-validator-handler.test.mjs
           node --test packages/autocad-plugin/sandbox-validator-lifecycle.test.mjs
           node --test packages/autocad-plugin/sandbox-validator-receipt.test.mjs
           node --test packages/autocad-plugin/sandbox-validator-transport.test.mjs
           node --test packages/autocad-plugin/sandbox-validator-execution.test.mjs
+          node --test packages/autocad-plugin/sandbox-validator-output.test.mjs
+          node --test packages/autocad-plugin/sandbox-validator-finalization-handler.test.mjs
+          node --test packages/autocad-plugin/sandbox-validator-finalization.test.mjs
           node --test packages/db/src/sandbox-validator-ledger.test.mjs
           node --test packages/db/src/sandbox-validator-receipt-store.test.mjs
         env:
@@ -131,3 +135,5 @@ jobs:
         run: docker run --rm --network none --entrypoint node archon-aps-worker --test packages/autocad-plugin/sandbox-storage.test.mjs
       - name: Verify output transport guards in runtime image
         run: docker run --rm --network none --entrypoint node archon-aps-worker --test packages/autocad-plugin/output-transport.test.mjs
+      - name: Verify validator activity guards in runtime image
+        run: docker run --rm --network none --entrypoint node archon-aps-worker --test packages/autocad-plugin/provision-validator-activity.test.mjs

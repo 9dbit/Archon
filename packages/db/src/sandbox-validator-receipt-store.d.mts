@@ -1,1 +1,1 @@
-export function createSandboxValidatorReceiptStore(query:(sql:string,params:any[])=>Promise<any[]>):{storePrepared(record:any):Promise<any>;lookup(runId:string):Promise<any>};
+export function createSandboxValidatorReceiptStore(query:(sql:string,params:any[])=>Promise<any[]>):{storePrepared(record:any):Promise<any>;claimFinalization(runId:string,manifestSha256:string,artifactEvidenceSha256:string,validatorWorkitemId:string):Promise<any>;markConsumed(runId:string):Promise<any>;markUnknown(runId:string,diagnostic?:string):Promise<any>;lookup(runId:string):Promise<any>};
