@@ -47,3 +47,11 @@ test('drawing-only CAD prompts remain preview-only with external sync locked', (
   assert.equal(preview.drawingPlan.externalSync, 'LOCKED');
   assert.equal(preview.governance.externalSyncExecuted, false);
 });
+
+test('explicit target selection resolves an ambiguous wall command into a safe preview', () => {
+  const preview = createCommandCenterPreview({ prompt: 'Move wall 500 mm', canonicalObjects: objects, targetArchonId: 'archon_wall_north' });
+  assert.equal(preview.state, 'SANDBOX_PREVIEW_READY');
+  assert.equal(preview.intent.targetArchonId, 'archon_wall_north');
+  assert.deepEqual(preview.proposedChangeSet.operations, [{ type: 'MOVE', targetId: 'archon_wall_north', payload: { deltaZmm: -500 } }]);
+});
+
