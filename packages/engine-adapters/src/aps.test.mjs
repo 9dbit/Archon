@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ApsAuthService, ApsAutomationService, getApsDiagnostics, createDwgPipelinePlan, startApsConnectionProbe, getApsConnectionStatus } from './aps.ts';
+import { ApsAuthService, ApsAutomationService, getApsDiagnostics, createDwgPipelinePlan, issueApsViewerToken, startApsConnectionProbe, getApsConnectionStatus } from './aps.ts';
 const config = { clientId: 'test-id', clientSecret: 'test-secret', engineId: 'Autodesk.AutoCAD+24_3', activityId: 'owner.layout+dev', appBundleId: 'owner.bundle+dev' };
 test('missing credentials and configuration cause zero network calls', async () => {
   let calls = 0; const request = async () => { calls++; throw Error('network'); };
@@ -101,4 +101,17 @@ test('startup probe runs once and public snapshots never expose or reacquire tok
   assert.equal(JSON.stringify(result).includes('private-token'),false);
   await startApsConnectionProbe(credentials,request); assert.equal(calls,4);
   delete globalThis.__archonApsConnection;
+});
+
+test('Viewer token uses read-only scope and validates the response without exposing config', async () => {
+  let call;
+  const token = await issueApsViewerToken({clientId:'viewer-id',clientSecret:'viewer-secret'}, async (url, options) => {
+    call = {url, method:options.method, authorization:options.headers.Authorization, body:options.body};
+    return Response.json({access_token:'viewer-token',token_type:'Bearer',expires_in:1800});
+  });
+  assert.deepEqual(token,{accessToken:'viewer-token',expiresIn:1800});
+  assert.equal(call.method,'POST');
+  assert.equal(call.body,'grant_type=client_credentials&scope=viewables%3Aread');
+  assert.ok(String(call.authorization).startsWith('Basic '));
+  await assert.rejects(issueApsViewerToken({clientId:'',clientSecret:'secret'}, async()=>{throw Error('network')}), /APS_CREDENTIALS_MISSING/);
 });

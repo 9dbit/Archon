@@ -52,7 +52,7 @@ export const engineAdapters = {
 
 export type EngineAdapterKey = keyof typeof engineAdapters;
 
-export { ApsAuthService, ApsAutomationService, getApsConfig, getApsDiagnostics, createDwgPipelinePlan } from './aps';
+export { ApsAuthService, ApsAutomationService, getApsConfig, getApsDiagnostics, createDwgPipelinePlan, issueApsViewerToken } from './aps';
 export type { ApsConfig, DwgPipelinePlan } from './aps';
 
 export { getApsConnectionStatus, startApsConnectionProbe } from './aps';
