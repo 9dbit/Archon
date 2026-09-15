@@ -22,7 +22,10 @@ const VIEWER_SCRIPT = 'https://developer.api.autodesk.com/modelderivative/v2/vie
 export function AutoCadViewerPanel() {
   const [status, setStatus] = useState<ViewerStatus | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);\n  const [viewerState, setViewerState] = useState<'IDLE' | 'LOADING' | 'READY' | 'FAILED'>('IDLE');\n  const viewerContainer = useRef<HTMLDivElement>(null);\n  const viewerInstance = useRef<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [viewerState, setViewerState] = useState<'IDLE' | 'LOADING' | 'READY' | 'FAILED'>('IDLE');
+  const viewerContainer = useRef<HTMLDivElement>(null);
+  const viewerInstance = useRef<any>(null);
 
   async function loadStatus() {
     setBusy(true);
