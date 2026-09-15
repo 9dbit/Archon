@@ -105,6 +105,11 @@ export function AutoCadViewerPanel() {
       {ready ? <><div ref={viewerContainer} className="autocad-viewer-canvas" aria-label="Autodesk Viewer drawing canvas" />{viewerState !== 'READY' && <div className="autocad-viewer-overlay"><Eye size={26}/><b>{viewerState === 'FAILED' ? 'Viewer failed to load' : 'Loading Autodesk Viewer'}</b><small>{viewerState === 'FAILED' ? 'Inspect the diagnostics below. The drawing remains read-only.' : 'Fetching a short-lived read-only Viewer session and translated derivative.'}</small></div>}</> :
         <div className="autocad-viewer-placeholder"><LockKeyhole size={26}/><b>{pending ? 'DWG translation pending' : 'Viewer load locked'}</b><small>{pending ? 'Wait for a completed APS derivative before opening the drawing.' : 'Configure a valid translated APS URN and enable the viewer gate before any external artifact is loaded.'}</small></div>}
     </div>
+    <div className="autocad-review-provenance" aria-label="Review provenance">
+      <div><small>CANONICAL</small><b>ARCHON Building Graph</b><span>Approved geometry · source of truth</span></div>
+      <div className="autocad-review-arrow" aria-hidden="true">→</div>
+      <div><small>EXTERNAL ARTIFACT</small><b>APS DWG derivative</b><span>Read-only mirror · sync locked</span></div>
+    </div>
     <div className="autocad-viewer-meta">
       <span><ShieldCheck size={13}/> Canonical graph protected</span>
       <span>Translation: {status?.translationStatus ?? 'CHECKING'}</span>
