@@ -25,6 +25,7 @@ const REVIEW_LAYERS = [
   { name: 'A-DIMS', label: 'Dimensions', state: 'REVIEW' },
   { name: 'A-LAYER-MAP', label: 'Layer mapping', state: 'LOCKED' }
 ] as const;
+const ACTIVE_REVIEW = { id: '6d6fb316-290d-4b16-82af-2441486373c6', state: 'NEEDS_REVIEW' } as const;
 
 export function AutoCadViewerPanel() {
   const [status, setStatus] = useState<ViewerStatus | null>(null);
@@ -123,6 +124,10 @@ export function AutoCadViewerPanel() {
         {REVIEW_LAYERS.map((layer) => <div className="autocad-review-layer" key={layer.name}><span className="autocad-review-layer-name">{layer.name}</span><b>{layer.label}</b><em className={layer.state.toLowerCase()}>{layer.state}</em></div>)}
       </div>
       <small className="autocad-review-manifest-note">MATCHED = no observed delta · REVIEW = inspect before proposal · LOCKED = external sync disabled</small>
+    </div>
+    <div className="autocad-review-binding" aria-label="ChangeSet binding">
+      <div><small>CHANGESET CONTEXT</small><b>{ACTIVE_REVIEW.state}</b><span>{ACTIVE_REVIEW.id}</span></div>
+      <div className="autocad-review-binding-lock"><LockKeyhole size={13}/><span>Evidence-only binding · approval required</span></div>
     </div>
     <div className="autocad-viewer-meta">
       <span><ShieldCheck size={13}/> Canonical graph protected</span>
