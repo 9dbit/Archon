@@ -18,6 +18,13 @@ type ViewerStatus = {
 
 type ViewerSession = { state: 'READY'; urn: string; accessToken: string; expiresIn: number; diagnostics: string[]; executionEnabled: false; externalSync: 'LOCKED' };
 const VIEWER_SCRIPT = 'https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/viewer3D.js';
+const REVIEW_LAYERS = [
+  { name: 'SITE-BOUNDARY', label: 'Site boundary', state: 'MATCHED' },
+  { name: 'A-WALL', label: 'Walls', state: 'REVIEW' },
+  { name: 'A-ROOM-TAG', label: 'Room labels', state: 'MATCHED' },
+  { name: 'A-DIMS', label: 'Dimensions', state: 'REVIEW' },
+  { name: 'A-LAYER-MAP', label: 'Layer mapping', state: 'LOCKED' }
+] as const;
 
 export function AutoCadViewerPanel() {
   const [status, setStatus] = useState<ViewerStatus | null>(null);
@@ -109,6 +116,13 @@ export function AutoCadViewerPanel() {
       <div><small>CANONICAL</small><b>ARCHON Building Graph</b><span>Approved geometry · source of truth</span></div>
       <div className="autocad-review-arrow" aria-hidden="true">→</div>
       <div><small>EXTERNAL ARTIFACT</small><b>APS DWG derivative</b><span>Read-only mirror · sync locked</span></div>
+    </div>
+    <div className="autocad-review-manifest" aria-label="DWG review manifest">
+      <div className="autocad-review-manifest-head"><small>REVIEW MANIFEST</small><span>Canonical v. external artifact</span></div>
+      <div className="autocad-review-layer-grid">
+        {REVIEW_LAYERS.map((layer) => <div className="autocad-review-layer" key={layer.name}><span className="autocad-review-layer-name">{layer.name}</span><b>{layer.label}</b><em className={layer.state.toLowerCase()}>{layer.state}</em></div>)}
+      </div>
+      <small className="autocad-review-manifest-note">MATCHED = no observed delta · REVIEW = inspect before proposal · LOCKED = external sync disabled</small>
     </div>
     <div className="autocad-viewer-meta">
       <span><ShieldCheck size={13}/> Canonical graph protected</span>
