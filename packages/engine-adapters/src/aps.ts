@@ -162,3 +162,23 @@ export async function startApsConnectionProbe(config = getApsConfig(), request: 
   })();
   try { await runtime.pending; } finally { runtime.pending = undefined; }
 }
+
+export async function issueApsViewerToken(config = getApsConfig(), request: Fetcher = fetch): Promise<{ accessToken: string; expiresIn: number }> {
+  if (!config.clientId?.trim() || !config.clientSecret?.trim()) throw new Error('APS_CREDENTIALS_MISSING');
+  const response = await request(host + '/authentication/v2/token', {
+    method: 'POST', redirect: 'error', signal: AbortSignal.timeout(10000),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: 'Basic ' + Buffer.from(config.clientId + ':' + config.clientSecret).toString('base64') },
+    body: new URLSearchParams({ grant_type: 'client_credentials', scope: 'viewables:read' }).toString()
+  });
+  if (!response.ok) throw new Error('APS_VIEWER_AUTH_HTTP_' + response.status);
+  let body: unknown;
+  try { body = await response.json(); } catch { throw new Error('APS_VIEWER_TOKEN_INVALID'); }
+  const token = body as { access_token?: unknown; token_type?: unknown; expires_in?: unknown } | null;
+  if (!token || typeof token.access_token !== 'string' || !token.access_token.trim() ||
+      typeof token.token_type !== 'string' || token.token_type.toLowerCase() !== 'bearer' ||
+      typeof token.expires_in !== 'number' || !Number.isFinite(token.expires_in) || token.expires_in <= 60) {
+    throw new Error('APS_VIEWER_TOKEN_INVALID');
+  }
+  return { accessToken: token.access_token, expiresIn: Math.floor(token.expires_in) };
+}
