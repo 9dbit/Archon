@@ -40,10 +40,10 @@ In SketchUp:
 Set:
 
 - **ARCHON URL** — Railway/public URL for the ARCHON web service.
-- **Bridge token** — must equal server environment variable `ARCHON_SKETCHUP_BRIDGE_TOKEN`.
+- **Bridge token** — raw client token stored only in local SketchUp preferences.
 - **Project ID** — optional during the first bridge slice.
 
-The bridge token is stored locally using SketchUp preferences and is never included in the model manifest.
+On the server, store only `SHA-256(bridge token)` as `ARCHON_SKETCHUP_BRIDGE_TOKEN_SHA256`. The raw bridge token must not be stored as a Railway server variable and is never included in the model manifest.
 
 ## Smoke test
 
@@ -60,4 +60,4 @@ The bridge token is stored locally using SketchUp preferences and is never inclu
 
 ## Security note
 
-The first endpoint uses a single bearer bridge token. Before broad distribution, move to per-device credentials with revocation/rotation and bind each device to a user/project authorization scope.
+The first endpoint uses one bearer credential but stores only its SHA-256 digest server-side. Before broad distribution, move to per-device credentials with revocation/rotation and bind each device to a user/project authorization scope.
