@@ -3,6 +3,7 @@
 module Archon
   module Config
     PREF_KEY = 'ARCHON'.freeze
+    KEEP_TOKEN_SENTINEL = '__KEEP__'.freeze
     DEFAULT_BASE_URL = 'https://archon-web-production-0305.up.railway.app'.freeze
 
     module_function
@@ -20,7 +21,10 @@ module Archon
     end
 
     def bridge_token=(value)
-      Sketchup.write_default(PREF_KEY, 'bridge_token', value.to_s.strip)
+      normalized = value.to_s.strip
+      return bridge_token if normalized == KEEP_TOKEN_SENTINEL
+
+      Sketchup.write_default(PREF_KEY, 'bridge_token', normalized)
     end
 
     def project_id
