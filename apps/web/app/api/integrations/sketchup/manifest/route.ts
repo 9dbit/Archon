@@ -5,21 +5,32 @@ export const runtime = 'nodejs';
 
 const MANIFEST_SCHEMA = 'archon.sketchup.manifest.v1';
 const MAX_BODY_BYTES = 5 * 1024 * 1024;
+const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/i;
 
 function unauthorized() {
   return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 });
 }
 
-function tokenMatches(expected: string, received: string) {
-  const expectedBuffer = Buffer.from(expected);
-  const receivedBuffer = Buffer.from(received);
-  if (expectedBuffer.length !== receivedBuffer.length) return false;
-  return timingSafeEqual(expectedBuffer, receivedBuffer);
+function sha256Hex(value: string) {
+  return createHash('sha256').update(value, 'utf8').digest('hex');
+}
+
+function tokenHashMatches(expectedHash: string, receivedToken: string) {
+  const normalizedExpected = expectedHash.trim().toLowerCase();
+  if (!SHA256_HEX_PATTERN.test(normalizedExpected)) return false;
+
+  const receivedHash = sha256Hex(receivedToken);
+  return timingSafeEqual(
+    Buffer.from(normalizedExpected, 'hex'),
+    Buffer.from(receivedHash, 'hex')
+  );
 }
 
 export async function POST(request: NextRequest) {
-  const expectedToken = process.env.ARCHON_SKETCHUP_BRIDGE_TOKEN?.trim();
-  if (!expectedToken) {
+  const expectedTokenHash =
+    process.env.ARCHON_SKETCHUP_BRIDGE_TOKEN_SHA256?.trim();
+
+  if (!expectedTokenHash || !SHA256_HEX_PATTERN.test(expectedTokenHash)) {
     return NextResponse.json(
       { error: 'ARCHON_SKETCHUP_BRIDGE_NOT_CONFIGURED' },
       { status: 503 }
@@ -31,7 +42,7 @@ export async function POST(request: NextRequest) {
     ? authorization.slice('Bearer '.length).trim()
     : '';
 
-  if (!receivedToken || !tokenMatches(expectedToken, receivedToken)) {
+  if (!receivedToken || !tokenHashMatches(expectedTokenHash, receivedToken)) {
     return unauthorized();
   }
 
@@ -67,7 +78,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const payloadSha256 = createHash('sha256').update(rawBody).digest('hex');
+  const payloadSha256 = sha256Hex(rawBody);
   const receiptId = randomUUID();
 
   // First v2 slice is intentionally read-only: acceptance does not create,
