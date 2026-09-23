@@ -43,6 +43,10 @@ module Archon
       "#{base_url}/api/integrations/sketchup/manifest"
     end
 
+    def layout_preview_url
+      "#{base_url}/api/integrations/sketchup/layout/preview"
+    end
+
     def normalize_base_url(value)
       value.strip.sub(%r{/+\z}, '')
     end

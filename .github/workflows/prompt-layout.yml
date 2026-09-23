@@ -1,0 +1,34 @@
+name: Prompt Layout CI
+
+on:
+  pull_request:
+    paths:
+      - 'packages/domain/src/prompt-layout.ts'
+      - 'packages/domain/src/prompt-layout.test.mjs'
+      - 'apps/web/app/api/integrations/sketchup/layout/**'
+      - 'sketchup-extension/**'
+      - '.github/workflows/prompt-layout.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/domain/src/prompt-layout.ts'
+      - 'packages/domain/src/prompt-layout.test.mjs'
+      - 'apps/web/app/api/integrations/sketchup/layout/**'
+      - 'sketchup-extension/**'
+      - '.github/workflows/prompt-layout.yml'
+
+jobs:
+  prompt-layout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prompt layout domain tests
+        run: node --experimental-transform-types --test packages/domain/src/prompt-layout.test.mjs
+      - name: Validate SketchUp Ruby syntax
+        run: |
+          set -euo pipefail
+          find sketchup-extension -type f -name '*.rb' -print0 | xargs -0 -n1 ruby -c
