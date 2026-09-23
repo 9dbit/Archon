@@ -1,0 +1,44 @@
+name: SketchUp Extension CI
+
+on:
+  pull_request:
+    paths:
+      - 'sketchup-extension/**'
+      - '.github/workflows/sketchup-extension.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'sketchup-extension/**'
+      - '.github/workflows/sketchup-extension.yml'
+
+jobs:
+  ruby-syntax-and-package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+
+      - name: Validate Ruby syntax
+        run: |
+          set -euo pipefail
+          find sketchup-extension -type f -name '*.rb' -print0 \
+            | xargs -0 -n1 ruby -c
+
+      - name: Package ARCHON.rbz
+        run: |
+          set -euo pipefail
+          cd sketchup-extension
+          zip -r ../ARCHON.rbz archon.rb archon
+
+      - name: Upload RBZ artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ARCHON-SketchUp-RBZ
+          path: ARCHON.rbz
+          if-no-files-found: error
