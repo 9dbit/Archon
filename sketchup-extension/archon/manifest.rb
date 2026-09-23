@@ -8,6 +8,8 @@ module Archon
     SCHEMA = 'archon.sketchup.manifest.v1'.freeze
     ARCHON_DICTIONARY = 'ARCHON'.freeze
     MAX_ENTITY_RECORDS = 5_000
+    MAX_SEMANTIC_RECORDS = 12_000
+    MAX_SEMANTIC_DEPTH = 12
     INCH_TO_MM = 25.4
 
     module_function
@@ -17,6 +19,7 @@ module Archon
 
       root_entities = model.entities.to_a
       entity_records = root_entities.first(MAX_ENTITY_RECORDS).map { |entity| entity_record(entity) }
+      semantic = build_semantic_inventory(root_entities)
 
       manifest = {
         schema: SCHEMA,
@@ -25,7 +28,8 @@ module Archon
           application: 'SketchUp',
           sketchup_version: Sketchup.version,
           platform: Sketchup.platform.to_s,
-          extension_version: Archon::EXTENSION_VERSION
+          extension_version: Archon::EXTENSION_VERSION,
+          capabilities: ['recursive_semantic_inventory_v1']
         },
         project_id: Archon::Config.project_id,
         model: {
@@ -36,12 +40,14 @@ module Archon
           bounds_mm: bounds_mm(model.bounds),
           archon: dictionary_hash(model.attribute_dictionary(ARCHON_DICTIONARY, false))
         },
-        summary: build_summary(model, root_entities),
+        summary: build_summary(model, root_entities, semantic[:records]),
         tags: model.layers.map { |layer| { name: layer.name.to_s, visible: layer.visible? } },
         materials: model.materials.map { |material| material_record(material) },
         scenes: model.pages.map { |page| scene_record(page) },
         definitions: model.definitions.reject(&:group?).map { |definition| definition_record(definition) },
         root_entities: entity_records,
+        semantic_inventory: semantic[:records],
+        semantic_inventory_truncated: semantic[:truncated],
         truncated: root_entities.length > MAX_ENTITY_RECORDS
       }
 
@@ -49,19 +55,93 @@ module Archon
       manifest
     end
 
-    def build_summary(model, entities)
+    def build_summary(model, entities, semantic_records = [])
       counts = Hash.new(0)
       entities.each { |entity| counts[entity.typename.to_s] += 1 }
 
+      semantic_counts = Hash.new(0)
+      semantic_records.each { |record| semantic_counts[record[:type].to_s] += 1 }
+
       {
         root_entity_count: entities.length,
+        semantic_entity_count: semantic_records.length,
         face_count: model.number_faces,
         definition_count: model.definitions.length,
         material_count: model.materials.length,
         tag_count: model.layers.length,
         scene_count: model.pages.length,
-        entity_types: counts.sort.to_h
+        entity_types: counts.sort.to_h,
+        semantic_entity_types: semantic_counts.sort.to_h
       }
+    end
+
+    def build_semantic_inventory(root_entities)
+      records = []
+      walk_semantic_entities(root_entities, records, 0, [], nil)
+      {
+        records: records,
+        truncated: records.length >= MAX_SEMANTIC_RECORDS
+      }
+    rescue StandardError => error
+      {
+        records: [{
+          persistent_id: nil,
+          type: 'AnalysisError',
+          name: nil,
+          tag: nil,
+          hidden: nil,
+          locked: nil,
+          bounds_mm: nil,
+          archon: {},
+          depth: 0,
+          path: [],
+          parent_persistent_id: nil,
+          analysis_error: error.message
+        }],
+        truncated: false
+      }
+    end
+
+    def walk_semantic_entities(entities, records, depth, parent_path, parent_persistent_id)
+      return if depth > MAX_SEMANTIC_DEPTH || records.length >= MAX_SEMANTIC_RECORDS
+
+      entities.each do |entity|
+        break if records.length >= MAX_SEMANTIC_RECORDS
+        next unless semantic_container?(entity)
+
+        pid = persistent_id(entity)
+        path_part = pid || "#{entity.typename}:#{records.length}"
+        path = parent_path + [path_part]
+        record = entity_record(entity).merge(
+          parent_persistent_id: parent_persistent_id,
+          depth: depth,
+          path: path
+        )
+        records << record
+
+        next if depth >= MAX_SEMANTIC_DEPTH
+
+        children = semantic_children(entity)
+        next unless children
+
+        walk_semantic_entities(children, records, depth + 1, path, pid)
+      end
+    end
+
+    def semantic_container?(entity)
+      entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
+    rescue StandardError
+      false
+    end
+
+    def semantic_children(entity)
+      if entity.is_a?(Sketchup::Group)
+        entity.entities.to_a
+      elsif entity.is_a?(Sketchup::ComponentInstance)
+        entity.definition.entities.to_a
+      end
+    rescue StandardError
+      nil
     end
 
     def entity_record(entity)
@@ -76,10 +156,12 @@ module Archon
         archon: dictionary_hash(entity.attribute_dictionary(ARCHON_DICTIONARY, false))
       }
 
-      if entity.is_a?(Sketchup::ComponentInstance)
-        record[:definition] = entity.definition.name.to_s
-      elsif entity.is_a?(Sketchup::Group)
+      if entity.is_a?(Sketchup::Group)
+        record[:definition] = entity.entities.parent.name.to_s if entity.entities.respond_to?(:parent)
         record[:child_entity_count] = entity.entities.length
+      elsif entity.is_a?(Sketchup::ComponentInstance)
+        record[:definition] = entity.definition.name.to_s
+        record[:child_entity_count] = entity.definition.entities.length
       end
 
       record
