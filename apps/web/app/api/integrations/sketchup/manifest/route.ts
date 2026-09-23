@@ -1,11 +1,16 @@
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  buildBuildingGraphV2Preview,
+  type SketchUpManifestLike
+} from '@archon/domain';
 
 export const runtime = 'nodejs';
 
 const MANIFEST_SCHEMA = 'archon.sketchup.manifest.v1';
 const MAX_BODY_BYTES = 5 * 1024 * 1024;
 const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/i;
+const BUILDING_GRAPH_PREVIEW_LIMIT = 50;
 
 function unauthorized() {
   return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 });
@@ -78,11 +83,27 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  let buildingGraph;
+  try {
+    buildingGraph = buildBuildingGraphV2Preview(
+      manifest as unknown as SketchUpManifestLike
+    );
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: 'BUILDING_GRAPH_PREVIEW_FAILED',
+        detail: error instanceof Error ? error.message : 'UNKNOWN_ERROR'
+      },
+      { status: 422 }
+    );
+  }
+
   const payloadSha256 = sha256Hex(rawBody);
   const receiptId = randomUUID();
 
-  // First v2 slice is intentionally read-only: acceptance does not create,
-  // approve, execute, or commit a ChangeSet and does not mutate SketchUp state.
+  // This bridge remains intentionally read-only. Building Graph v2 is only a
+  // deterministic preview derived from the submitted manifest. It does not
+  // create, approve, execute, or commit a ChangeSet and does not mutate SKP.
   return NextResponse.json({
     accepted: true,
     receiptId,
@@ -95,6 +116,17 @@ export async function POST(request: NextRequest) {
         ? manifest.project_id
         : null,
     receivedAt: new Date().toISOString(),
-    mutation: 'none'
+    mutation: 'none',
+    buildingGraph: {
+      schema: buildingGraph.schema,
+      generatedFrom: buildingGraph.generatedFrom,
+      modelGuid: buildingGraph.modelGuid,
+      semanticHash: buildingGraph.semanticHash,
+      summary: buildingGraph.summary,
+      previewNodes: buildingGraph.nodes.slice(0, BUILDING_GRAPH_PREVIEW_LIMIT),
+      previewTruncated:
+        buildingGraph.nodes.length > BUILDING_GRAPH_PREVIEW_LIMIT,
+      mutation: buildingGraph.mutation
+    }
   });
 }
