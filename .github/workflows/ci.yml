@@ -43,6 +43,8 @@ jobs:
         run: node --experimental-transform-types --test packages/engine-adapters/src/dwg-input.test.mjs
       - name: Command Prompt Center sandbox tests
         run: node --experimental-transform-types --test packages/domain/src/command-center.test.mjs
+      - name: Building Graph v2 SketchUp tests
+        run: node --experimental-transform-types --test packages/domain/src/building-graph.test.mjs
       - name: Reviewed geometry diff regression tests
         run: node --experimental-transform-types --test apps/web/components/changeset-preview-geometry.test.mjs
       - name: APS resource provisioning guard tests
