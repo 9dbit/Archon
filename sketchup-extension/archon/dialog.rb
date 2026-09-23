@@ -22,7 +22,7 @@ module Archon
         scrollable: true,
         resizable: true,
         width: 420,
-        height: 650,
+        height: 700,
         min_width: 360,
         min_height: 480,
         style: UI::HtmlDialog::STYLE_DIALOG
@@ -42,7 +42,7 @@ module Archon
         begin
           @last_manifest = Archon::Manifest.build
           dialog.execute_script("renderManifest(#{JSON.generate(@last_manifest)});")
-          set_status('Read-only analysis complete. No geometry was changed.')
+          set_status('Read-only semantic analysis complete. No geometry was changed.')
         rescue StandardError => error
           set_status("Analysis failed: #{escape_js(error.message)}", true)
         end
@@ -106,12 +106,13 @@ module Archon
             .primary { background: #c8ff3d; color: #151914; }
             .secondary { background: #2a3037; color: #fff; }
             .disabled { opacity: .38; cursor: not-allowed; }
-            pre { white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow: auto; font-size: 11px; color: #c9d1d9; }
+            pre { white-space: pre-wrap; word-break: break-word; max-height: 260px; overflow: auto; font-size: 11px; color: #c9d1d9; }
             #status { font-size: 12px; line-height: 1.4; color: #aeb6bf; }
             #status.error { color: #ff8a8a; }
             .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
             .metric { padding: 8px; background: #101215; border-radius: 8px; font-size: 11px; }
             .metric b { display: block; font-size: 16px; margin-top: 3px; }
+            .graph-note { margin-top: 10px; font-size: 11px; color: #9aa3ad; line-height: 1.45; }
           </style>
         </head>
         <body>
@@ -135,6 +136,7 @@ module Archon
               <button class="primary" onclick="sketchup.analyze()">Analyze Current Model</button>
               <button class="secondary" onclick="sketchup.sendManifest()">Send Manifest</button>
               <div id="metrics" class="row" style="margin-top:10px"></div>
+              <div id="graphNote" class="graph-note">Building Graph v2 preview appears after Send Manifest.</div>
             </div>
 
             <div class="card">
@@ -144,7 +146,7 @@ module Archon
               <button class="disabled" disabled>Publish</button>
             </div>
 
-            <div class="card"><div id="status">Ready. First slice is read-only.</div></div>
+            <div class="card"><div id="status">Ready. This slice is read-only.</div></div>
             <div class="card"><strong>Receipt / manifest</strong><pre id="output">No analysis yet.</pre></div>
           </div>
           <script>
@@ -171,15 +173,29 @@ module Archon
             function renderManifest(m) {
               const s = m.summary || {};
               const metrics = [
-                ['Entities', s.root_entity_count || 0],
+                ['Root', s.root_entity_count || 0],
+                ['Semantic', s.semantic_entity_count || 0],
                 ['Faces', s.face_count || 0],
-                ['Materials', s.material_count || 0],
-                ['Scenes', s.scene_count || 0]
+                ['Materials', s.material_count || 0]
               ];
               document.getElementById('metrics').innerHTML = metrics.map(x => `<div class="metric">${x[0]}<b>${x[1]}</b></div>`).join('');
-              document.getElementById('output').textContent = JSON.stringify({ model: m.model, summary: m.summary, semantic_hash: m.semantic_hash }, null, 2);
+              document.getElementById('graphNote').textContent = m.semantic_inventory_truncated
+                ? 'Semantic inventory reached the safety limit and was truncated.'
+                : 'Recursive semantic inventory ready. Send Manifest to create a read-only Building Graph v2 preview.';
+              document.getElementById('output').textContent = JSON.stringify({
+                model: m.model,
+                summary: m.summary,
+                semantic_inventory_truncated: m.semantic_inventory_truncated,
+                semantic_hash: m.semantic_hash
+              }, null, 2);
             }
             function renderReceipt(r) {
+              const g = r && r.buildingGraph;
+              if (g && g.summary) {
+                const s = g.summary;
+                document.getElementById('graphNote').textContent =
+                  `Building Graph v2: ${s.classifiedCount}/${s.nodeCount} classified · ${s.unresolvedCount} unresolved · ${s.reviewRequiredCount} need review.`;
+              }
               document.getElementById('output').textContent = JSON.stringify(r, null, 2);
             }
           </script>
