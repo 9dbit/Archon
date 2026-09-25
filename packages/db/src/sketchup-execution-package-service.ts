@@ -136,6 +136,7 @@ export async function approveSketchUpExecutionPackage(
     if (existingApproval) {
       const matches = existingApproval.decision === 'APPROVE_EXECUTION_PACKAGE'
         && existingApproval.approvedBy === normalized.approvedBy
+        && existingApproval.note === normalized.note
         && existingApproval.expectedDrawingIrFingerprint === normalized.expectedDrawingIrFingerprint
         && existingApproval.expectedProposedChangeSetId === normalized.expectedProposedChangeSetId;
       if (!matches) throw new Error('EXECUTION_PACKAGE_APPROVAL_CONFLICT');
