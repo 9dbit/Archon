@@ -7,8 +7,11 @@ on:
       - 'packages/domain/src/prompt-layout.test.mjs'
       - 'packages/domain/src/drawing-ir.ts'
       - 'packages/domain/src/drawing-ir.test.mjs'
+      - 'packages/domain/src/layout-scenarios.test.mjs'
       - 'packages/domain/src/index.ts'
       - 'apps/web/app/api/integrations/sketchup/layout/**'
+      - 'apps/web/app/layout-sandbox/**'
+      - 'apps/web/components/layout-review-sandbox.tsx'
       - 'sketchup-extension/**'
       - '.github/workflows/prompt-layout.yml'
   push:
@@ -19,8 +22,11 @@ on:
       - 'packages/domain/src/prompt-layout.test.mjs'
       - 'packages/domain/src/drawing-ir.ts'
       - 'packages/domain/src/drawing-ir.test.mjs'
+      - 'packages/domain/src/layout-scenarios.test.mjs'
       - 'packages/domain/src/index.ts'
       - 'apps/web/app/api/integrations/sketchup/layout/**'
+      - 'apps/web/app/layout-sandbox/**'
+      - 'apps/web/components/layout-review-sandbox.tsx'
       - 'sketchup-extension/**'
       - '.github/workflows/prompt-layout.yml'
 
@@ -32,8 +38,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Prompt layout + drawing IR domain tests
-        run: node --experimental-transform-types --test packages/domain/src/prompt-layout.test.mjs packages/domain/src/drawing-ir.test.mjs
+      - name: Prompt layout + drawing IR + synthetic scenario tests
+        run: node --experimental-transform-types --test packages/domain/src/prompt-layout.test.mjs packages/domain/src/drawing-ir.test.mjs packages/domain/src/layout-scenarios.test.mjs
       - name: Validate SketchUp Ruby syntax
         run: |
           set -euo pipefail
