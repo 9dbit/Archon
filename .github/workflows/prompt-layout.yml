@@ -5,6 +5,9 @@ on:
     paths:
       - 'packages/domain/src/prompt-layout.ts'
       - 'packages/domain/src/prompt-layout.test.mjs'
+      - 'packages/domain/src/drawing-ir.ts'
+      - 'packages/domain/src/drawing-ir.test.mjs'
+      - 'packages/domain/src/index.ts'
       - 'apps/web/app/api/integrations/sketchup/layout/**'
       - 'sketchup-extension/**'
       - '.github/workflows/prompt-layout.yml'
@@ -14,6 +17,9 @@ on:
     paths:
       - 'packages/domain/src/prompt-layout.ts'
       - 'packages/domain/src/prompt-layout.test.mjs'
+      - 'packages/domain/src/drawing-ir.ts'
+      - 'packages/domain/src/drawing-ir.test.mjs'
+      - 'packages/domain/src/index.ts'
       - 'apps/web/app/api/integrations/sketchup/layout/**'
       - 'sketchup-extension/**'
       - '.github/workflows/prompt-layout.yml'
@@ -26,8 +32,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Prompt layout domain tests
-        run: node --experimental-transform-types --test packages/domain/src/prompt-layout.test.mjs
+      - name: Prompt layout + drawing IR domain tests
+        run: node --experimental-transform-types --test packages/domain/src/prompt-layout.test.mjs packages/domain/src/drawing-ir.test.mjs
       - name: Validate SketchUp Ruby syntax
         run: |
           set -euo pipefail
