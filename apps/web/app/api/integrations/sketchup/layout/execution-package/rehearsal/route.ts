@@ -8,6 +8,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/i;
+const FINGERPRINT_PATTERN = /^[a-f0-9]{8,64}$/i;
 const MAX_BODY_BYTES = 8 * 1024;
 
 function sha256Hex(value: string) {
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: { packageHash?: unknown };
+  let body: { packageHash?: unknown; dryRunPlanFingerprint?: unknown };
   try {
     body = JSON.parse(rawBody) as typeof body;
   } catch {
@@ -59,6 +60,16 @@ export async function POST(request: NextRequest) {
   if (!SHA256_HEX_PATTERN.test(packageHash)) {
     return NextResponse.json(
       { error: 'SKETCHUP_EXECUTOR_PACKAGE_HASH_INVALID' },
+      { status: 400, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
+
+  const dryRunPlanFingerprint = typeof body.dryRunPlanFingerprint === 'string'
+    ? body.dryRunPlanFingerprint.trim().toLowerCase()
+    : '';
+  if (!FINGERPRINT_PATTERN.test(dryRunPlanFingerprint)) {
+    return NextResponse.json(
+      { error: 'SKETCHUP_EXECUTOR_DRY_RUN_FINGERPRINT_INVALID' },
       { status: 400, headers: { 'Cache-Control': 'no-store' } }
     );
   }
@@ -87,12 +98,23 @@ export async function POST(request: NextRequest) {
       payload: record.package.payload
     });
 
+    if (plan.source.dryRunPlanFingerprint.toLowerCase() !== dryRunPlanFingerprint) {
+      return NextResponse.json(
+        {
+          error: 'SKETCHUP_EXECUTOR_DRY_RUN_FINGERPRINT_MISMATCH',
+          expected: plan.source.dryRunPlanFingerprint
+        },
+        { status: 409, headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+
     return NextResponse.json(
       {
         plan,
         execution: {
           mode: 'ROLLBACK_REHEARSAL_ONLY',
           packageState: record.package.state,
+          dryRunPlanFingerprintBound: true,
           sketchUpMutationEnabled: false,
           transactionAllowed: true,
           transientGeometryAllowed: true,
