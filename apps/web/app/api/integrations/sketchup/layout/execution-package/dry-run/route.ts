@@ -2,7 +2,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createSketchUpExecutorDryRunPlan } from '@archon/domain';
 import { getApprovedSketchUpExecutionPackage } from '@archon/db';
-import { getDatabase } from '../../../../../../lib/db';
+import { getDatabase } from '../../../../../../../lib/db';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
