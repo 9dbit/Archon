@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createLayoutReviewProposal, createPromptLayoutPreview } from './index.ts';
+import { createPromptLayoutPreview } from './prompt-layout.ts';
+import { createLayoutReviewProposal } from './drawing-ir.ts';
 
 const scenarios = [
   {
