@@ -1,0 +1,77 @@
+name: SketchUp Execution Package CI
+
+on:
+  pull_request:
+    paths:
+      - 'packages/domain/src/execution-package.ts'
+      - 'packages/domain/src/execution-package.test.mjs'
+      - 'packages/domain/src/drawing-ir.ts'
+      - 'packages/db/src/sketchup-execution-package-service.ts'
+      - 'packages/db/src/sketchup-execution-package-service.test.mjs'
+      - 'packages/db/src/schema.ts'
+      - 'packages/db/src/index.ts'
+      - 'packages/db/src/migrate.ts'
+      - 'packages/db/drizzle/0008_sketchup_execution_packages.sql'
+      - 'apps/web/app/api/integrations/sketchup/layout/execution-package/**'
+      - 'apps/web/app/api/integrations/sketchup/layout/review/route.ts'
+      - 'apps/web/components/layout-review-sandbox.tsx'
+      - '.github/workflows/sketchup-execution-package.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/domain/src/execution-package.ts'
+      - 'packages/domain/src/execution-package.test.mjs'
+      - 'packages/domain/src/drawing-ir.ts'
+      - 'packages/db/src/sketchup-execution-package-service.ts'
+      - 'packages/db/src/sketchup-execution-package-service.test.mjs'
+      - 'packages/db/src/schema.ts'
+      - 'packages/db/src/index.ts'
+      - 'packages/db/src/migrate.ts'
+      - 'packages/db/drizzle/0008_sketchup_execution_packages.sql'
+      - 'apps/web/app/api/integrations/sketchup/layout/execution-package/**'
+      - 'apps/web/app/api/integrations/sketchup/layout/review/route.ts'
+      - 'apps/web/components/layout-review-sandbox.tsx'
+      - '.github/workflows/sketchup-execution-package.yml'
+
+jobs:
+  immutable-package:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: archon_test
+          POSTGRES_PASSWORD: archon_test
+          POSTGRES_DB: archon_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U archon_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Apply migrations
+        run: pnpm --filter @archon/db db:migrate
+        env:
+          DATABASE_URL: postgres://archon_test:archon_test@localhost:5432/archon_test
+      - name: Domain execution package guards
+        run: node --experimental-transform-types --test packages/domain/src/execution-package.test.mjs
+      - name: Durable append-only package ledger
+        run: pnpm --filter @archon/db exec tsx --test src/sketchup-execution-package-service.test.mjs
+        env:
+          ARCHON_LEDGER_TEST_DATABASE_URL: postgres://archon_test:archon_test@localhost:5432/archon_test
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Build web
+        run: pnpm build
