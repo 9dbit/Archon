@@ -8,6 +8,8 @@ module Archon
     REQUIRED_NEXT_GATE = 'APPROVE_SKETCHUP_EXECUTOR'.freeze
     ATTRIBUTE_DICTIONARY = 'ARCHON'.freeze
 
+    @verified_dry_runs = {}
+
     module_function
 
     def dry_run(plan)
@@ -17,12 +19,15 @@ module Archon
 
       operations = plan.fetch('operations')
       validate_operation_references!(operations)
+      package_hash = plan.fetch('source').fetch('packageHash').to_s.downcase
+      plan_fingerprint = plan.fetch('deterministicFingerprint').to_s.downcase
+      @verified_dry_runs[package_hash] = plan_fingerprint
 
       {
         'schema' => 'archon.sketchup-local-dry-run-report.v1',
         'state' => 'DRY_RUN_VERIFIED',
-        'planFingerprint' => plan.fetch('deterministicFingerprint'),
-        'packageHash' => plan.fetch('source').fetch('packageHash'),
+        'planFingerprint' => plan_fingerprint,
+        'packageHash' => package_hash,
         'model' => {
           'guid' => model.guid.to_s,
           'title' => model.title.to_s,
@@ -35,6 +40,7 @@ module Archon
           'modelTransactionOpened' => false,
           'geometryMutationAttempted' => false,
           'executionEnabled' => false,
+          'localRehearsalBindingStored' => true,
           'requiredNextGate' => REQUIRED_NEXT_GATE
         }
       }
@@ -47,7 +53,14 @@ module Archon
 
       operations = plan.fetch('operations')
       validate_operation_references!(operations)
+      package_hash = plan.fetch('source').fetch('packageHash').to_s.downcase
+      expected_dry_run_fingerprint = plan.fetch('source').fetch('dryRunPlanFingerprint').to_s.downcase
+      verified_dry_run_fingerprint = @verified_dry_runs[package_hash]
+      unless verified_dry_run_fingerprint && verified_dry_run_fingerprint == expected_dry_run_fingerprint
+        raise 'ARCHON_EXECUTOR_DRY_RUN_NOT_VERIFIED_LOCALLY'
+      end
 
+      @verified_dry_runs.delete(package_hash)
       root_before = model.entities.length
       transaction_open = false
       execution_error = nil
@@ -62,8 +75,9 @@ module Archon
         rehearsal_group = model.entities.add_group
         rehearsal_group.name = '__ARCHON_ROLLBACK_REHEARSAL__'
         rehearsal_group.set_attribute(ATTRIBUTE_DICTIONARY, 'temporary', true)
-        rehearsal_group.set_attribute(ATTRIBUTE_DICTIONARY, 'package_hash', plan.fetch('source').fetch('packageHash'))
+        rehearsal_group.set_attribute(ATTRIBUTE_DICTIONARY, 'package_hash', package_hash)
         rehearsal_group.set_attribute(ATTRIBUTE_DICTIONARY, 'plan_fingerprint', plan.fetch('deterministicFingerprint'))
+        rehearsal_group.set_attribute(ATTRIBUTE_DICTIONARY, 'dry_run_plan_fingerprint', expected_dry_run_fingerprint)
 
         materialized = materialize_operations!(rehearsal_group.entities, operations)
       rescue StandardError => error
@@ -91,7 +105,8 @@ module Archon
         'schema' => 'archon.sketchup-local-rollback-rehearsal-report.v1',
         'state' => 'ROLLBACK_VERIFIED',
         'planFingerprint' => plan.fetch('deterministicFingerprint'),
-        'packageHash' => plan.fetch('source').fetch('packageHash'),
+        'packageHash' => package_hash,
+        'dryRunPlanFingerprint' => expected_dry_run_fingerprint,
         'model' => {
           'guid' => model.guid.to_s,
           'title' => model.title.to_s,
@@ -109,6 +124,7 @@ module Archon
           'transactionAborted' => true,
           'persistentGeometryChanged' => false,
           'executionEnabled' => false,
+          'localDryRunBindingConsumed' => true,
           'requiredNextGate' => REQUIRED_NEXT_GATE
         }
       }
@@ -318,6 +334,11 @@ module Archon
       raise 'ARCHON_EXECUTOR_REHEARSAL_UNITS_INVALID' unless plan['units'] == 'mm'
 
       validate_common_plan!(plan)
+      dry_run_fingerprint = plan.dig('source', 'dryRunPlanFingerprint').to_s
+      unless dry_run_fingerprint.match?(/\A[a-f0-9]{8,64}\z/i)
+        raise 'ARCHON_EXECUTOR_REHEARSAL_DRY_RUN_FINGERPRINT_INVALID'
+      end
+
       safety = plan['safety']
       safe = safety['mutation'] == 'transient_rollback_only' &&
         safety['dryRunVerified'] == true &&
