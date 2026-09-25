@@ -25,8 +25,11 @@ module Archon
       post_json(Archon::Config.execution_package_dry_run_url, payload, &callback)
     end
 
-    def rehearse_execution_package(package_hash, &callback)
-      payload = { packageHash: package_hash.to_s.strip.downcase }
+    def rehearse_execution_package(package_hash, dry_run_plan_fingerprint, &callback)
+      payload = {
+        packageHash: package_hash.to_s.strip.downcase,
+        dryRunPlanFingerprint: dry_run_plan_fingerprint.to_s.strip.downcase
+      }
       post_json(Archon::Config.execution_package_rehearsal_url, payload, &callback)
     end
 
