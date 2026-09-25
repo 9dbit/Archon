@@ -41,6 +41,34 @@ export type SketchUpExecutorDryRunPlan = {
   };
 };
 
+export type SketchUpExecutorRollbackRehearsalPlan = {
+  schema: 'archon.sketchup-executor-rehearsal-plan.v1';
+  state: 'ROLLBACK_REHEARSAL_READY';
+  targetEngine: 'SKETCHUP';
+  executionMode: 'NATIVE_2D_ROLLBACK_REHEARSAL';
+  units: 'mm';
+  source: SketchUpExecutorDryRunPlan['source'] & {
+    dryRunPlanFingerprint: string;
+  };
+  operations: DrawingIROperation[];
+  operationCount: number;
+  summary: SketchUpExecutorDryRunPlan['summary'];
+  validation: SketchUpExecutorPlanFinding[];
+  deterministicFingerprint: string;
+  safety: {
+    mutation: 'transient_rollback_only';
+    dryRunVerified: true;
+    sketchUpMutationEnabled: false;
+    transactionAllowed: true;
+    transientGeometryAllowed: true;
+    persistentGeometryAllowed: false;
+    abortRequired: true;
+    commitAllowed: false;
+    saveAllowed: false;
+    requiredNextGate: 'APPROVE_SKETCHUP_EXECUTOR';
+  };
+};
+
 const SHA256_HEX = /^[a-f0-9]{64}$/i;
 const FINGERPRINT = /^[a-f0-9]{8,64}$/i;
 
@@ -218,6 +246,42 @@ export function createSketchUpExecutorDryRunPlan(input: {
       rubyExecutorCalled: false as const,
       transactionOpened: false as const,
       geometryMutationAllowed: false as const,
+      requiredNextGate: 'APPROVE_SKETCHUP_EXECUTOR' as const
+    }
+  };
+
+  return {
+    ...base,
+    deterministicFingerprint: fingerprint(base)
+  };
+}
+
+export function createSketchUpExecutorRollbackRehearsalPlan(input: Parameters<typeof createSketchUpExecutorDryRunPlan>[0]): SketchUpExecutorRollbackRehearsalPlan {
+  const dryRunPlan = createSketchUpExecutorDryRunPlan(input);
+  const base = {
+    schema: 'archon.sketchup-executor-rehearsal-plan.v1' as const,
+    state: 'ROLLBACK_REHEARSAL_READY' as const,
+    targetEngine: 'SKETCHUP' as const,
+    executionMode: 'NATIVE_2D_ROLLBACK_REHEARSAL' as const,
+    units: 'mm' as const,
+    source: {
+      ...dryRunPlan.source,
+      dryRunPlanFingerprint: dryRunPlan.deterministicFingerprint
+    },
+    operations: dryRunPlan.operations,
+    operationCount: dryRunPlan.operationCount,
+    summary: dryRunPlan.summary,
+    validation: dryRunPlan.validation,
+    safety: {
+      mutation: 'transient_rollback_only' as const,
+      dryRunVerified: true as const,
+      sketchUpMutationEnabled: false as const,
+      transactionAllowed: true as const,
+      transientGeometryAllowed: true as const,
+      persistentGeometryAllowed: false as const,
+      abortRequired: true as const,
+      commitAllowed: false as const,
+      saveAllowed: false as const,
       requiredNextGate: 'APPROVE_SKETCHUP_EXECUTOR' as const
     }
   };

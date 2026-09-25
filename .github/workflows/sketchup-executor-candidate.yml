@@ -7,6 +7,7 @@ on:
       - 'packages/domain/src/sketchup-executor-plan.test.mjs'
       - 'packages/domain/src/index.ts'
       - 'apps/web/app/api/integrations/sketchup/layout/execution-package/dry-run/**'
+      - 'apps/web/app/api/integrations/sketchup/layout/execution-package/rehearsal/**'
       - 'sketchup-extension/**'
       - '.github/workflows/sketchup-executor-candidate.yml'
   push:
@@ -17,6 +18,7 @@ on:
       - 'packages/domain/src/sketchup-executor-plan.test.mjs'
       - 'packages/domain/src/index.ts'
       - 'apps/web/app/api/integrations/sketchup/layout/execution-package/dry-run/**'
+      - 'apps/web/app/api/integrations/sketchup/layout/execution-package/rehearsal/**'
       - 'sketchup-extension/**'
       - '.github/workflows/sketchup-executor-candidate.yml'
 
@@ -33,9 +35,9 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
-      - name: Executor plan domain tests
+      - name: Executor plan and rollback rehearsal domain tests
         run: node --experimental-transform-types --test packages/domain/src/sketchup-executor-plan.test.mjs
-      - name: Enforce Ruby mutation lock
+      - name: Enforce abort-only Ruby executor safety
         run: node --test sketchup-extension/executor-lock.test.mjs
       - name: Validate SketchUp Ruby syntax
         run: |

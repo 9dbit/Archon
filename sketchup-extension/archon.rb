@@ -6,7 +6,7 @@ require 'extensions.rb'
 module Archon
   EXTENSION_ID = 'com.archon.sketchup'
   EXTENSION_NAME = 'ARCHON'
-  EXTENSION_VERSION = '0.3.3'
+  EXTENSION_VERSION = '0.3.4'
 
   unless const_defined?(:EXTENSION)
     extension = SketchupExtension.new(EXTENSION_NAME, 'archon/main')
