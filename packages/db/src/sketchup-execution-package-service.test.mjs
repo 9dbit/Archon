@@ -61,6 +61,21 @@ maybeTest('approved SketchUp execution package is durable, locked and idempotent
   assert.equal(loaded?.approval?.id, first.approval.id);
 });
 
+maybeTest('approval retry with changed audit metadata is rejected', async () => {
+  const db = createDatabase(databaseUrl);
+  const input = fixture();
+  await approveSketchUpExecutionPackage(db, input);
+
+  await assert.rejects(
+    approveSketchUpExecutionPackage(db, { ...input, note: 'different approval note' }),
+    /EXECUTION_PACKAGE_APPROVAL_CONFLICT/
+  );
+  await assert.rejects(
+    approveSketchUpExecutionPackage(db, { ...input, approvedBy: 'different-reviewer' }),
+    /EXECUTION_PACKAGE_APPROVAL_CONFLICT/
+  );
+});
+
 maybeTest('same proposed ChangeSet cannot be rebound to a different package hash', async () => {
   const db = createDatabase(databaseUrl);
   const input = fixture();
