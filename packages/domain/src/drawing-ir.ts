@@ -5,7 +5,7 @@ import {
   type LayoutProgram,
   type LayoutRect,
   type LayoutWallSegment
-} from './prompt-layout';
+} from './prompt-layout.ts';
 
 export type LayoutCandidateId = LayoutCandidate['id'];
 
@@ -273,7 +273,7 @@ function stableStringify(value: unknown): string {
       .map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`)
       .join(',')}}`;
   }
-  return JSON.stringify(value);
+  return JSON.stringify(value) ?? 'undefined';
 }
 
 function fingerprint(value: unknown) {
@@ -365,7 +365,8 @@ export function createLayoutReviewProposal(input: {
   edits?: LayoutRoomReviewEdit[];
 }): LayoutReviewProposal {
   const preview = createPromptLayoutPreview({ prompt: input.prompt });
-  if (!preview.program.footprint || !preview.candidates.length) throw new Error('DRAWING_IR_LAYOUT_PREVIEW_NOT_READY');
+  const footprint = preview.program.footprint;
+  if (!footprint || !preview.candidates.length) throw new Error('DRAWING_IR_LAYOUT_PREVIEW_NOT_READY');
 
   const candidate = preview.candidates.find(item => item.id === input.candidateId);
   if (!candidate) throw new Error('DRAWING_IR_CANDIDATE_NOT_FOUND');
@@ -378,6 +379,7 @@ export function createLayoutReviewProposal(input: {
   const doors = buildDoors(rooms);
   const validation = validateReviewedGeometry(preview.program, rooms, walls, doors);
   const blocked = validation.some(finding => finding.severity === 'BLOCKER');
+  const placedAreaM2 = rooms.reduce((sum, room) => sum + room.widthMm * room.depthMm, 0) / 1_000_000;
   const reviewedCandidate: LayoutCandidate = {
     ...candidate,
     rooms,
@@ -387,8 +389,8 @@ export function createLayoutReviewProposal(input: {
     valid: !blocked,
     metrics: {
       ...candidate.metrics,
-      placedRoomAreaM2: Number((rooms.reduce((sum, room) => sum + room.widthMm * room.depthMm, 0) / 1_000_000).toFixed(2)),
-      utilizationRatio: Number(((rooms.reduce((sum, room) => sum + room.widthMm * room.depthMm, 0) / 1_000_000) / preview.program.footprint.areaM2).toFixed(4))
+      placedRoomAreaM2: Number(placedAreaM2.toFixed(2)),
+      utilizationRatio: Number((placedAreaM2 / footprint.areaM2).toFixed(4))
     }
   };
 
