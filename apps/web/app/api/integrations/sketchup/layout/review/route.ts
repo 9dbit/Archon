@@ -1,6 +1,9 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { createLayoutReviewProposal } from '@archon/domain';
+import {
+  createLayoutReviewProposal,
+  createSketchUpExecutionPackageDraft
+} from '@archon/domain';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -70,23 +73,34 @@ export async function POST(request: NextRequest) {
         depthMm?: number;
       }> : []
     });
+    const projectRef = typeof body.projectId === 'string' && body.projectId.trim()
+      ? body.projectId.trim()
+      : null;
+    const executionPackageDraft = proposal.state === 'REVIEW_READY'
+      ? createSketchUpExecutionPackageDraft({ review: proposal, projectRef })
+      : null;
 
     return NextResponse.json(
       {
         ...proposal,
-        projectId: typeof body.projectId === 'string' && body.projectId.trim() ? body.projectId.trim() : null,
+        projectId: projectRef,
+        executionPackageDraft,
         execution: {
-          mode: 'PROPOSED_CHANGESET_PREVIEW_ONLY',
+          mode: 'EXECUTION_PACKAGE_DRAFT_ONLY',
+          durablePackageApproved: false,
           sketchUpMutationEnabled: false,
           approveAndDrawEnabled: false,
-          rubyExecutorCalled: false
+          rubyExecutorCalled: false,
+          nextGate: 'APPROVE_EXECUTION_PACKAGE'
         }
       },
       { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'UNKNOWN_ERROR';
-    const status = message.startsWith('DRAWING_IR_') || message.startsWith('PROMPT_LAYOUT_') ? 400 : 500;
+    const status = message.startsWith('EXECUTION_PACKAGE_')
+      || message.startsWith('DRAWING_IR_')
+      || message.startsWith('PROMPT_LAYOUT_') ? 400 : 500;
     return NextResponse.json({ error: message }, { status, headers: { 'Cache-Control': 'no-store' } });
   }
 }
