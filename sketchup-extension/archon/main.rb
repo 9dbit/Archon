@@ -73,32 +73,52 @@ module Archon
       package_hash = prompt_package_hash('ARCHON SketchUp Rollback Rehearsal')
       return unless package_hash
 
-      Archon::Client.rehearse_execution_package(package_hash) do |status, response|
-        unless status >= 200 && status < 300
-          error = response.is_a?(Hash) ? response['error'].to_s : 'UNKNOWN_ERROR'
-          UI.messagebox("ARCHON rollback rehearsal rejected (HTTP #{status}): #{error}")
+      Archon::Client.dry_run_execution_package(package_hash) do |dry_status, dry_response|
+        unless dry_status >= 200 && dry_status < 300
+          error = dry_response.is_a?(Hash) ? dry_response['error'].to_s : 'UNKNOWN_ERROR'
+          UI.messagebox("ARCHON rehearsal preflight dry-run rejected (HTTP #{dry_status}): #{error}")
           next
         end
 
         begin
-          plan = response.fetch('plan')
-          report = Archon::Executor.rollback_rehearsal(plan)
-          materialized = report.fetch('materialized')
-          UI.messagebox(
-            "ARCHON rollback rehearsal verified.\n\n" \
-            "Plan: #{report['planFingerprint']}\n" \
-            "Temporary operation groups: #{materialized['operationGroups']}\n" \
-            "Rooms: #{materialized['rooms']}\n" \
-            "Walls: #{materialized['walls']}\n" \
-            "Doors: #{materialized['doors']}\n" \
-            "Labels: #{materialized['labels']}\n\n" \
-            "Transaction was aborted and root entity count returned to its original value.\n" \
-            "No geometry was persisted. Persistent execution remains locked.\n" \
-            "Next gate: #{report.dig('safety', 'requiredNextGate')}"
-          )
-          puts JSON.pretty_generate(report)
+          dry_report = Archon::Executor.dry_run(dry_response.fetch('plan'))
+          dry_run_fingerprint = dry_report.fetch('planFingerprint')
+
+          Archon::Client.rehearse_execution_package(package_hash, dry_run_fingerprint) do |status, response|
+            unless status >= 200 && status < 300
+              error = response.is_a?(Hash) ? response['error'].to_s : 'UNKNOWN_ERROR'
+              UI.messagebox("ARCHON rollback rehearsal rejected (HTTP #{status}): #{error}")
+              next
+            end
+
+            begin
+              plan = response.fetch('plan')
+              unless plan.dig('source', 'dryRunPlanFingerprint').to_s == dry_run_fingerprint.to_s
+                raise 'ARCHON_EXECUTOR_DRY_RUN_FINGERPRINT_BINDING_INVALID'
+              end
+
+              report = Archon::Executor.rollback_rehearsal(plan)
+              materialized = report.fetch('materialized')
+              UI.messagebox(
+                "ARCHON rollback rehearsal verified.\n\n" \
+                "Dry-run: #{dry_run_fingerprint}\n" \
+                "Rehearsal: #{report['planFingerprint']}\n" \
+                "Temporary operation groups: #{materialized['operationGroups']}\n" \
+                "Rooms: #{materialized['rooms']}\n" \
+                "Walls: #{materialized['walls']}\n" \
+                "Doors: #{materialized['doors']}\n" \
+                "Labels: #{materialized['labels']}\n\n" \
+                "Transaction was aborted and root entity count returned to its original value.\n" \
+                "No geometry was persisted. Persistent execution remains locked.\n" \
+                "Next gate: #{report.dig('safety', 'requiredNextGate')}"
+              )
+              puts JSON.pretty_generate({ 'dryRun' => dry_report, 'rollbackRehearsal' => report })
+            rescue StandardError => error
+              UI.messagebox("ARCHON rollback rehearsal failed: #{error.message}")
+            end
+          end
         rescue StandardError => error
-          UI.messagebox("ARCHON rollback rehearsal failed: #{error.message}")
+          UI.messagebox("ARCHON rehearsal preflight dry-run failed: #{error.message}")
         end
       end
     rescue StandardError => error
@@ -115,7 +135,7 @@ module Archon
       dry_run_command.status_bar_text = 'Dry-run an immutable approved package. SketchUp mutation remains locked.'
 
       rehearsal_command = UI::Command.new('ARCHON Rollback Rehearsal') { run_executor_rollback_rehearsal }
-      rehearsal_command.tooltip = 'Create temporary native 2D geometry inside a transaction that is always aborted.'
+      rehearsal_command.tooltip = 'Run dry-run preflight, then create temporary native 2D geometry inside a transaction that is always aborted.'
       rehearsal_command.status_bar_text = 'Rehearse approved ARCHON geometry with mandatory rollback. Persistent mutation remains locked.'
 
       extensions_menu = UI.menu('Extensions')
