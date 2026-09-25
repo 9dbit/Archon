@@ -21,6 +21,15 @@ test('v0.3.4 rollback rehearsal exposes no persistent SketchUp mutation path', (
   }
 });
 
+test('rollback rehearsal requires and consumes a local dry-run binding', () => {
+  assert.match(source, /@verified_dry_runs = \{\}/);
+  assert.match(source, /@verified_dry_runs\[package_hash\] = plan_fingerprint/);
+  assert.match(source, /ARCHON_EXECUTOR_DRY_RUN_NOT_VERIFIED_LOCALLY/);
+  assert.match(source, /@verified_dry_runs\.delete\(package_hash\)/);
+  assert.match(source, /'localRehearsalBindingStored' => true/);
+  assert.match(source, /'localDryRunBindingConsumed' => true/);
+});
+
 test('rollback rehearsal opens a transaction but always aborts it', () => {
   assert.match(source, /def rollback_rehearsal\(plan\)/);
   assert.match(source, /model\.start_operation\('ARCHON Rollback Rehearsal', true\)/);
