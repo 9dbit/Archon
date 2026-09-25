@@ -90,8 +90,8 @@ export function LayoutReviewSandbox() {
     setEdits(current => ({
       ...current,
       [roomId]: {
-        roomId,
         ...(current[roomId] ?? {}),
+        roomId,
         [key]: numberOrUndefined(value)
       }
     }));
