@@ -6,7 +6,7 @@ import {
   createSketchUpExecutionPackageDraft
 } from '@archon/domain';
 import { approveSketchUpExecutionPackage } from '@archon/db';
-import { getDatabase } from '../../../../../../lib/db';
+import { getDatabase } from '../../../../../../../lib/db';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
