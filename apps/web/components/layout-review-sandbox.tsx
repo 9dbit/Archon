@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import {
   createLayoutReviewProposal,
   createPromptLayoutPreview,
+  createSketchUpExecutionPackageDraft,
   type LayoutCandidate,
   type LayoutRoomReviewEdit,
   type PromptLayoutPreview
@@ -72,6 +73,15 @@ export function LayoutReviewSandbox() {
     [preview, selectedId]
   );
 
+  const packageDraft = useMemo(() => {
+    if (!review || review.state !== 'REVIEW_READY') return null;
+    try {
+      return createSketchUpExecutionPackageDraft({ review });
+    } catch {
+      return null;
+    }
+  }, [review]);
+
   function generate() {
     try {
       const next = createPromptLayoutPreview({ prompt });
@@ -121,12 +131,14 @@ export function LayoutReviewSandbox() {
       <div style={{ maxWidth: 1500, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, marginBottom: 22, flexWrap: 'wrap' }}>
           <div>
-            <div style={{ color: '#c8ff3d', fontSize: 12, fontWeight: 700, letterSpacing: 1.4 }}>ARCHON v0.3.1</div>
+            <div style={{ color: '#c8ff3d', fontSize: 12, fontWeight: 700, letterSpacing: 1.4 }}>ARCHON v0.3.2</div>
             <h1 style={{ margin: '5px 0 6px', fontSize: 30 }}>Prompt Layout Review Sandbox</h1>
-            <div style={{ color: '#8e98a3', maxWidth: 760 }}>Browser-only review surface. It produces Drawing IR and a Proposed Draw ChangeSet, but cannot execute SketchUp geometry.</div>
+            <div style={{ color: '#8e98a3', maxWidth: 820 }}>
+              Review Drawing IR and preview the immutable execution package. Durable package approval requires authenticated server authorization. SketchUp geometry execution remains locked.
+            </div>
           </div>
           <div style={{ padding: '8px 12px', borderRadius: 999, background: '#241f12', color: '#ffd27a', border: '1px solid #4a3d1d', fontSize: 12 }}>
-            MUTATION LOCKED
+            SKETCHUP MUTATION LOCKED
           </div>
         </div>
 
@@ -164,7 +176,7 @@ export function LayoutReviewSandbox() {
             </section>
 
             {selected && (
-              <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.2fr) minmax(320px,.8fr)', gap: 16, alignItems: 'start' }}>
+              <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.15fr) minmax(360px,.85fr)', gap: 16, alignItems: 'start' }}>
                 <div style={panel}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12 }}>
                     <div>
@@ -172,7 +184,7 @@ export function LayoutReviewSandbox() {
                       <div style={{ color: '#8e98a3', fontSize: 11, marginTop: 3 }}>Edit coordinates and dimensions in millimetres. Blank means keep solver value.</div>
                     </div>
                     <button onClick={buildReview} style={{ border: 0, borderRadius: 9, padding: '9px 13px', background: '#2b3239', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>
-                      Build Proposed ChangeSet
+                      Build Review Package
                     </button>
                   </div>
 
@@ -208,15 +220,29 @@ export function LayoutReviewSandbox() {
                 <div style={panel}>
                   <strong>Governance Result</strong>
                   {!review ? (
-                    <div style={{ color: '#8e98a3', fontSize: 12, lineHeight: 1.6, marginTop: 10 }}>Select/edit a candidate, then build the Proposed ChangeSet. No SketchUp call is made.</div>
+                    <div style={{ color: '#8e98a3', fontSize: 12, lineHeight: 1.6, marginTop: 10 }}>
+                      Select/edit a candidate, then build the review package. No SketchUp call or durable approval is made from this browser surface.
+                    </div>
                   ) : (
                     <div style={{ marginTop: 12 }}>
                       <div style={{ fontSize: 24, fontWeight: 800, color: review.state === 'REVIEW_READY' ? '#c8ff3d' : '#ff9a9a' }}>{review.state}</div>
                       <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                         <Metric label="Operations" value={String(review.drawingIR.operationCount)} />
-                        <Metric label="Fingerprint" value={review.drawingIR.deterministicFingerprint} />
+                        <Metric label="Drawing IR" value={review.drawingIR.deterministicFingerprint} />
+                        <Metric label="ChangeSet" value={review.proposedChangeSet.id} />
+                        <Metric label="Package Draft" value={packageDraft?.draftFingerprint ?? 'BLOCKED'} />
                       </div>
-                      <div style={{ marginTop: 12, fontSize: 11, color: '#aab2ba', wordBreak: 'break-all' }}>ChangeSet: {review.proposedChangeSet.id}</div>
+
+                      {packageDraft && (
+                        <div style={{ marginTop: 12, border: '1px solid #344025', background: '#12170e', borderRadius: 10, padding: 11 }}>
+                          <div style={{ color: '#c8ff3d', fontSize: 11, fontWeight: 800 }}>EXECUTION PACKAGE · APPROVAL READY</div>
+                          <div style={{ marginTop: 6, color: '#aeb7bf', fontSize: 11, lineHeight: 1.55 }}>
+                            Bound to the exact Drawing IR and Proposed ChangeSet above. Approval creates an immutable APPPROVED_LOCKED record only. It does not execute Ruby or mutate SketchUp.
+                          </div>
+                          <div style={{ marginTop: 7, color: '#ffd27a', fontSize: 11 }}>Next gate: {packageDraft.safety.requiredNextGate}</div>
+                        </div>
+                      )}
+
                       <div style={{ marginTop: 12 }}>
                         {review.validation.map(finding => (
                           <div key={finding.code} style={{ padding: '7px 0', borderTop: '1px solid #292e33', fontSize: 11, color: finding.severity === 'BLOCKER' ? '#ff9a9a' : finding.severity === 'WARNING' ? '#ffd27a' : '#b8c0c7' }}>
@@ -224,7 +250,11 @@ export function LayoutReviewSandbox() {
                           </div>
                         ))}
                       </div>
-                      <button disabled style={{ width: '100%', marginTop: 14, border: '1px solid #3a4046', borderRadius: 9, padding: 10, background: '#1c2024', color: '#707981', fontWeight: 800 }}>
+
+                      <button disabled style={{ width: '100%', marginTop: 14, border: '1px solid #4b452a', borderRadius: 9, padding: 10, background: '#211f16', color: '#8e8869', fontWeight: 800 }}>
+                        Approve Package · AUTHENTICATED API REQUIRED
+                      </button>
+                      <button disabled style={{ width: '100%', marginTop: 8, border: '1px solid #3a4046', borderRadius: 9, padding: 10, background: '#1c2024', color: '#707981', fontWeight: 800 }}>
                         Approve & Draw · LOCKED
                       </button>
                     </div>
@@ -240,5 +270,10 @@ export function LayoutReviewSandbox() {
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
-  return <div style={{ background: '#0d0f11', borderRadius: 8, padding: 9 }}><div style={{ color: '#7f8992', fontSize: 10 }}>{label}</div><div style={{ marginTop: 3, fontWeight: 800, fontSize: 13 }}>{value}</div></div>;
+  return (
+    <div style={{ background: '#0d0f11', borderRadius: 8, padding: 9, minWidth: 0 }}>
+      <div style={{ color: '#7f8992', fontSize: 10 }}>{label}</div>
+      <div style={{ marginTop: 3, fontWeight: 800, fontSize: 12, wordBreak: 'break-all' }}>{value}</div>
+    </div>
+  );
 }

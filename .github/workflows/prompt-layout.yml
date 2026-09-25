@@ -7,8 +7,15 @@ on:
       - 'packages/domain/src/prompt-layout.test.mjs'
       - 'packages/domain/src/drawing-ir.ts'
       - 'packages/domain/src/drawing-ir.test.mjs'
+      - 'packages/domain/src/execution-package.ts'
+      - 'packages/domain/src/execution-package.test.mjs'
       - 'packages/domain/src/layout-scenarios.test.mjs'
       - 'packages/domain/src/index.ts'
+      - 'packages/db/src/sketchup-execution-package-service.ts'
+      - 'packages/db/src/sketchup-execution-package-service.test.mjs'
+      - 'packages/db/src/schema.ts'
+      - 'packages/db/src/migrate.ts'
+      - 'packages/db/drizzle/0008_sketchup_execution_packages.sql'
       - 'apps/web/app/api/integrations/sketchup/layout/**'
       - 'apps/web/app/layout-sandbox/**'
       - 'apps/web/components/layout-review-sandbox.tsx'
@@ -22,8 +29,15 @@ on:
       - 'packages/domain/src/prompt-layout.test.mjs'
       - 'packages/domain/src/drawing-ir.ts'
       - 'packages/domain/src/drawing-ir.test.mjs'
+      - 'packages/domain/src/execution-package.ts'
+      - 'packages/domain/src/execution-package.test.mjs'
       - 'packages/domain/src/layout-scenarios.test.mjs'
       - 'packages/domain/src/index.ts'
+      - 'packages/db/src/sketchup-execution-package-service.ts'
+      - 'packages/db/src/sketchup-execution-package-service.test.mjs'
+      - 'packages/db/src/schema.ts'
+      - 'packages/db/src/migrate.ts'
+      - 'packages/db/drizzle/0008_sketchup_execution_packages.sql'
       - 'apps/web/app/api/integrations/sketchup/layout/**'
       - 'apps/web/app/layout-sandbox/**'
       - 'apps/web/components/layout-review-sandbox.tsx'
@@ -38,8 +52,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Prompt layout + drawing IR + synthetic scenario tests
-        run: node --experimental-transform-types --test packages/domain/src/prompt-layout.test.mjs packages/domain/src/drawing-ir.test.mjs packages/domain/src/layout-scenarios.test.mjs
+      - name: Prompt layout + drawing IR + execution package + synthetic scenario tests
+        run: node --experimental-transform-types --test packages/domain/src/prompt-layout.test.mjs packages/domain/src/drawing-ir.test.mjs packages/domain/src/execution-package.test.mjs packages/domain/src/layout-scenarios.test.mjs
       - name: Validate SketchUp Ruby syntax
         run: |
           set -euo pipefail

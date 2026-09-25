@@ -124,3 +124,33 @@ export const adapterJobs = pgTable('adapter_jobs', {
   approvedStateMutated: boolean('approved_state_mutated').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 });
+
+export const sketchupExecutionPackages = pgTable('sketchup_execution_packages', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  packageHash: text('package_hash').notNull(),
+  draftFingerprint: text('draft_fingerprint').notNull(),
+  projectRef: text('project_ref'),
+  proposedChangeSetId: text('proposed_change_set_id').notNull(),
+  drawingIrFingerprint: text('drawing_ir_fingerprint').notNull(),
+  payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
+  state: text('state').notNull().default('APPROVED_LOCKED'),
+  executionEnabled: boolean('execution_enabled').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+}, (t) => ({
+  packageHashUnique: uniqueIndex('sketchup_execution_packages_hash_uq').on(t.packageHash),
+  proposedChangeSetUnique: uniqueIndex('sketchup_execution_packages_changeset_uq').on(t.proposedChangeSetId),
+  drawingFingerprintIdx: index('sketchup_execution_packages_drawing_fp_idx').on(t.drawingIrFingerprint)
+}));
+
+export const sketchupExecutionPackageApprovals = pgTable('sketchup_execution_package_approvals', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  packageId: uuid('package_id').references(() => sketchupExecutionPackages.id, { onDelete: 'restrict' }).notNull(),
+  decision: text('decision').notNull(),
+  approvedBy: text('approved_by').notNull(),
+  note: text('note'),
+  expectedDrawingIrFingerprint: text('expected_drawing_ir_fingerprint').notNull(),
+  expectedProposedChangeSetId: text('expected_proposed_change_set_id').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+}, (t) => ({
+  packageUnique: uniqueIndex('sketchup_execution_package_approvals_package_uq').on(t.packageId)
+}));
