@@ -47,6 +47,10 @@ module Archon
       "#{base_url}/api/integrations/sketchup/layout/preview"
     end
 
+    def execution_package_dry_run_url
+      "#{base_url}/api/integrations/sketchup/layout/execution-package/dry-run"
+    end
+
     def normalize_base_url(value)
       value.strip.sub(%r{/+\z}, '')
     end

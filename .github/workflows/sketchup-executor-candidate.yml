@@ -1,0 +1,47 @@
+name: SketchUp Executor Candidate CI
+
+on:
+  pull_request:
+    paths:
+      - 'packages/domain/src/sketchup-executor-plan.ts'
+      - 'packages/domain/src/sketchup-executor-plan.test.mjs'
+      - 'packages/domain/src/index.ts'
+      - 'apps/web/app/api/integrations/sketchup/layout/execution-package/dry-run/**'
+      - 'sketchup-extension/**'
+      - '.github/workflows/sketchup-executor-candidate.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/domain/src/sketchup-executor-plan.ts'
+      - 'packages/domain/src/sketchup-executor-plan.test.mjs'
+      - 'packages/domain/src/index.ts'
+      - 'apps/web/app/api/integrations/sketchup/layout/execution-package/dry-run/**'
+      - 'sketchup-extension/**'
+      - '.github/workflows/sketchup-executor-candidate.yml'
+
+jobs:
+  mutation-locked-executor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Executor plan domain tests
+        run: node --experimental-transform-types --test packages/domain/src/sketchup-executor-plan.test.mjs
+      - name: Enforce Ruby mutation lock
+        run: node --test sketchup-extension/executor-lock.test.mjs
+      - name: Validate SketchUp Ruby syntax
+        run: |
+          set -euo pipefail
+          find sketchup-extension -type f -name '*.rb' -print0 | xargs -0 -n1 ruby -c
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Build web
+        run: pnpm build

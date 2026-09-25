@@ -100,3 +100,4 @@ export * from './building-graph';
 export * from './prompt-layout';
 export * from './drawing-ir';
 export * from './execution-package';
+export * from './sketchup-executor-plan';
