@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ARCHON Prototype</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">A</div><div><div class="brand-name">ARCHON</div><div class="brand-sub">Architecture OS</div></div></div>
+      <button class="new-project" data-nav="genesis">＋ New project</button>
+      <nav id="nav">
+        <div class="nav-section">WORKSPACE</div>
+        <button data-nav="home" class="nav-item active"><span>⌂</span> Overview</button>
+        <button data-nav="dashboard" class="nav-item"><span>◫</span> Project dashboard</button>
+        <button data-nav="layout" class="nav-item"><span>⌗</span> Layout studio</button>
+        <button data-nav="canvas" class="nav-item"><span>✦</span> Design canvas</button>
+        <button data-nav="studio3d" class="nav-item"><span>⬡</span> 3D studio</button>
+        <button data-nav="building" class="nav-item"><span>▦</span> Building model</button>
+        <button data-nav="technical" class="nav-item"><span>⌁</span> Technical drawings</button>
+        <div class="nav-section">INTELLIGENCE</div>
+        <button data-nav="materials" class="nav-item"><span>▤</span> Materials</button>
+        <button data-nav="boq" class="nav-item"><span>▥</span> BOQ & Cost</button>
+        <button data-nav="validation" class="nav-item"><span>✓</span> Validation</button>
+        <button data-nav="timeline" class="nav-item"><span>◷</span> Timeline</button>
+        <button data-nav="integrations" class="nav-item"><span>⚙</span> Integrations</button>
+      </nav>
+      <div class="sidebar-foot">
+        <div class="user-avatar">AD</div><div><strong>Adwin</strong><small>Principal architect</small></div><span>•••</span>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar">
+        <div class="crumb"><span class="muted">Projects</span><span>/</span><strong id="projectTitle">Casa Nusa Restaurant</strong></div>
+        <div class="top-actions">
+          <span class="sync-pill"><i></i> Sync healthy</span>
+          <span class="version-pill">V 14</span>
+          <button class="icon-btn">⌕</button><button class="icon-btn">☼</button>
+        </div>
+      </header>
+
+      <section class="content" id="content"></section>
+
+      <div class="command-dock">
+        <div class="command-inner">
+          <button class="command-icon">✦</button>
+          <input id="commandInput" placeholder="Ask ARCHON to change this project…" />
+          <button class="voice-btn" id="voiceBtn">◉</button>
+          <button class="send-btn" id="sendBtn">↑</button>
+        </div>
+        <div class="command-hint">Try: “Move the kitchen wall 300 mm east, keep columns locked.”</div>
+      </div>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>
