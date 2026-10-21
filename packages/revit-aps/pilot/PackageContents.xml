@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApplicationPackage SchemaVersion="1.0" AppVersion="0.1.0" Name="ArchonRevitReadOnlyPilot" Description="ARCHON metadata-only Revit pilot" Author="ARCHON">
+  <Components Description="ARCHON Revit 2026 read-only model metadata pilot">
+    <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2026" SeriesMax="R2026" />
+    <ComponentEntry AppName="ArchonRevitReadOnlyPilot" Version="0.1.0" ModuleName="./Contents/Archon.Revit.Pilot.addin" AppDescription="Read-only model report" LoadOnCommandInvocation="False" LoadOnRevitStartup="True" />
+  </Components>
+</ApplicationPackage>

@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Archon.Revit.Pilot</AssemblyName>
+    <RootNamespace>Archon.Revit.Pilot</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="PilotHandler.cs" />
+    <Compile Include="PilotGeometryInspector.cs" />
+    <PackageReference Include="Autodesk.Forge.DesignAutomation.Revit" Version="2026.0.0"
+                      GeneratePathProperty="true" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Revit_All_Main_Versions_API_x64" Version="2026.0.0"
+                      ExcludeAssets="runtime" PrivateAssets="all" />
+  </ItemGroup>
+  <!-- Autodesk's Automation runtime must load DesignAutomationBridge beside the add-in DLL.
+       Revit API DLLs are provided by the engine and must NOT be bundled. -->
+  <Target Name="CopyDesignAutomationBridge" AfterTargets="Build">
+    <PropertyGroup>
+      <BridgeDll>$(PkgAutodesk_Forge_DesignAutomation_Revit)/lib/net8.0/DesignAutomationBridge.dll</BridgeDll>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(BridgeDll)')" Text="REVIT_BRIDGE_RUNTIME_MISSING: $(BridgeDll)" />
+    <Copy SourceFiles="$(BridgeDll)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

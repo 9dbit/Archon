@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - 'feature/revit-aps-*'
+      - 'feature/revit-pilot-*'
     paths:
       - 'packages/revit-aps/**'
       - '.github/workflows/revit-aps-readonly.yml'
@@ -16,12 +17,39 @@ permissions:
   contents: read
 
 jobs:
-  discover_offline:
+  revit_offline:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Test Revit capability discovery without secrets or Autodesk access
-        run: node --test packages/revit-aps/discovery.test.mjs
+      - name: Test discovery, worker guardrails and offline resource plan
+        run: node --test packages/revit-aps/*.test.mjs
+      - name: Test fail-closed bundle layout and bridge inclusion
+        run: python3 -m unittest discover -s packages/revit-aps/pilot -p 'test_*.py'
+      - name: Verify Revit worker container has no network dependency
+        run: |
+          docker build -f packages/revit-aps/worker.Dockerfile -t archon-revit-inspect .
+          docker run --rm --network none -e ARCHON_REVIT_APS_WORKER_EXIT=1 archon-revit-inspect
+
+  revit_plugin_compile:
+    name: Compile and package metadata-only Revit add-in
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile Revit 2026 API add-in, no native Revit execution
+        run: dotnet build packages/revit-aps/pilot/Archon.Revit.Pilot.csproj -c Release
+      - name: Build local package with required DesignAutomationBridge and verify SHA256
+        run: python packages/revit-aps/pilot/package_pilot.py packages/revit-aps/pilot/bin/Release/net8.0-windows/Archon.Revit.Pilot.dll
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archon-revit-readonly-pilot-bundle
+          path: packages/revit-aps/artifacts/*
+          if-no-files-found: error
