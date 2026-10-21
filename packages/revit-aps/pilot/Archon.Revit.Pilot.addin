@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="DBApplication">
+    <Name>ARCHON Revit Pilot</Name>
+    <Assembly>.\Archon.Revit.Pilot.dll</Assembly>
+    <AddInId>723e3e6a-8789-4c51-afaa-50ca9b0fb4d0</AddInId>
+    <FullClassName>Archon.Revit.Pilot.PilotHandler</FullClassName>
+    <VendorId>ARCH</VendorId>
+    <VendorDescription>ARCHON, metadata-only sandbox pilot</VendorDescription>
+  </AddIn>
+</RevitAddIns>
