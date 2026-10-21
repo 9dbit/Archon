@@ -9,7 +9,7 @@ const ACTIVITY = 'ArchonRevitInspectModel';
 const ALIAS = 'pilot_v1';
 
 export function prepareRevitPilotPlan(namespace, discovery) {
-  if (typeof namespace !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(namespace)) {
+  if (typeof namespace !== 'string' || !/^[A-Za-z0-9_]{1,20}$/.test(namespace)) {
     throw new Error('REVIT_NAMESPACE_INVALID');
   }
   if (discovery?.state !== 'VERIFIED' || discovery.authVerified !== true ||

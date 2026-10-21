@@ -35,7 +35,7 @@ test('refuse unverified engine and spoofed discovery responses', () => {
 });
 
 test('reject namespaces containing injection and path characters', () => {
-  for (const namespace of ['', 'one.two', 'my/name', '../bad', 'bad name', 'a'.repeat(101)]) {
+  for (const namespace of ['', 'one.two', 'my/name', '../bad', 'bad name', 'a'.repeat(21), 'my-unsafe-nickname']) {
     assert.throws(() => prepareRevitPilotPlan(namespace, verified), /REVIT_NAMESPACE_INVALID/);
   }
 });

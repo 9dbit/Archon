@@ -51,6 +51,28 @@ It describes future `GET` input RVT and `PUT` JSON report parameters,
 without signed URLs or customer data in source control. Separate review
 is required before provisioning AppBundle/Activity or running a billable WorkItem.
 
+## Read-only APS resource inventory
+
+After configuring dedicated Revit APS credentials **locally or in an isolated
+staging environment**, run:
+
+```sh
+node packages/revit-aps/audit-check.mjs
+```
+
+This obtains one OAuth token and reads only Autodesk
+`GET /forgeapps/me` plus `GET /appbundles/{id}/aliases/{alias}` and
+`GET /activities/{id}/aliases/{alias}` for `$LATEST` and `pilot_v1`.
+It classifies missing resources, missing aliases, invalid nicknames and
+authorization errors. It **never registers, updates, deletes or submits**
+AppBundles, Activities, aliases or WorkItems; an empty resource inventory is
+not permission to create them. OAuth credentials and bearer tokens must
+not be pasted into GitHub, logs, tickets, or chat.
+
+APS nicknames are limited to **20 ASCII letters/numbers/underscores**,
+whereas AppBundle and Activity names are limited to 40 characters. The
+offline resource plan now applies the stricter nickname validation.
+
 ## Offline tests
 
 ```sh
