@@ -9,7 +9,8 @@ namespace Archon.Revit.Generator;
 
 /// <summary>
 /// Strictly scoped, native Revit 2026 pilot. No external network requests.
-/// The seed must be an authorized, otherwise-empty project RVT, not customer data.
+/// Creates a new metric Revit project within the Autodesk Automation sandbox.
+/// No seed RVT, Revit desktop install, or customer model is required.
 /// </summary>
 [Transaction(TransactionMode.Manual)]
 [Regeneration(RegenerationOption.Manual)]
@@ -45,28 +46,33 @@ public sealed class GeneratorHandler : IExternalDBApplication
             if (File.Exists(outputPath) || File.Exists(reportPath))
                 throw new InvalidDataException("ARCHON_OUTPUT_ALREADY_EXISTS");
 
-            var doc = e.DesignAutomationData?.RevitDoc;
+            var app = e.DesignAutomationData?.RevitApp;
+            if (app is null || app.VersionNumber != "2026")
+                throw new InvalidDataException("ARCHON_REVIT_ENGINE_NOT_2026");
+            // Autodesk supports opening Revit Automation without /i and creating a
+            // document via RevitApp.NewProjectDocument(UnitSystem.Metric).
+            // Never load or modify a customer-provided RVT in the generator.
+            var doc = app.NewProjectDocument(UnitSystem.Metric);
             if (doc is null || doc.IsFamilyDocument || doc.IsReadOnly || doc.IsWorkshared)
-                throw new InvalidDataException("ARCHON_SEED_NOT_EDITABLE_PROJECT");
-            if (doc.Application.VersionNumber != "2026")
-                throw new InvalidDataException("ARCHON_REVIT_VERSION_NOT_2026");
+                throw new InvalidDataException("ARCHON_FRESH_PROJECT_INVALID");
 
             var existingWalls = new FilteredElementCollector(doc)
                 .OfClass(typeof(Wall)).WhereElementIsNotElementType().ToElementIds();
             if (existingWalls.Count != 0)
-                throw new InvalidDataException("ARCHON_SEED_CONTAINS_WALLS");
+                throw new InvalidDataException("ARCHON_NEW_PROJECT_CONTAINS_WALLS");
 
             var preexistingLevels = new FilteredElementCollector(doc)
                 .OfClass(typeof(Level)).WhereElementIsNotElementType()
                 .Cast<Level>().OrderBy(x => x.Elevation).ToList();
             if (preexistingLevels.Count > 2)
-                throw new InvalidDataException("ARCHON_SEED_HAS_TOO_MANY_LEVELS");
+                throw new InvalidDataException("ARCHON_NEW_PROJECT_HAS_TOO_MANY_LEVELS");
 
             var wallType = new FilteredElementCollector(doc)
                 .OfClass(typeof(WallType)).Cast<WallType>()
                 .FirstOrDefault(x => x.Kind == WallKind.Basic);
-            if (wallType is null)
-                throw new InvalidDataException("ARCHON_BASIC_WALL_TYPE_MISSING");
+            // A fresh no-template document may expose its default wall type only
+            // when creating the first wall. Wall.Create's default overload is
+            // a safe fallback; both paths set exactly 3500 mm wall height.
 
             var height = UnitUtils.ConvertToInternalUnits(spec.WallHeightMm, UnitTypeId.Millimeters);
             var width = UnitUtils.ConvertToInternalUnits(spec.WidthMm, UnitTypeId.Millimeters);
@@ -74,11 +80,8 @@ public sealed class GeneratorHandler : IExternalDBApplication
             var upperElevation = UnitUtils.ConvertToInternalUnits(spec.UpperLevelMm, UnitTypeId.Millimeters);
             const double toleranceInFeet = 0.0001;
 
-            var groundLevels = preexistingLevels.Where(x => Math.Abs(x.Elevation) < toleranceInFeet).ToList();
-            var upperLevels = preexistingLevels.Where(x => Math.Abs(x.Elevation - upperElevation) < toleranceInFeet).ToList();
-            if (groundLevels.Count > 1 || upperLevels.Count > 1 ||
-                groundLevels.Count + upperLevels.Count != preexistingLevels.Count)
-                throw new InvalidDataException("ARCHON_SEED_LEVEL_ELEVATIONS_UNEXPECTED");
+            // Only the newly created document is normalized. No user model is
+            // passed to /i; any default levels may be moved to 0 and 3500 mm.
 
             Level ground;
             Level upper;
@@ -89,10 +92,14 @@ public sealed class GeneratorHandler : IExternalDBApplication
                 if (transaction.Start() != TransactionStatus.Started)
                     throw new InvalidOperationException("ARCHON_TRANSACTION_START_FAILED");
 
-                ground = groundLevels.FirstOrDefault() ?? Level.Create(doc, 0.0);
-                upper = upperLevels.FirstOrDefault() ?? Level.Create(doc, upperElevation);
-                if (groundLevels.Count == 0) ground.Name = "ARCHON Level 0";
-                if (upperLevels.Count == 0) upper.Name = "ARCHON Level +3500";
+                ground = preexistingLevels.Count >= 1
+                    ? preexistingLevels[0] : Level.Create(doc, 0.0);
+                upper = preexistingLevels.Count == 2
+                    ? preexistingLevels[1] : Level.Create(doc, upperElevation);
+                if (preexistingLevels.Count == 0) ground.Name = "ARCHON Level 0";
+                if (preexistingLevels.Count < 2) upper.Name = "ARCHON Level +3500";
+                ground.Elevation = 0.0;
+                upper.Elevation = upperElevation;
 
                 var corners = new[]
                 {
@@ -104,7 +111,18 @@ public sealed class GeneratorHandler : IExternalDBApplication
                 for (var i = 0; i < corners.Length; i++)
                 {
                     var curve = Line.CreateBound(corners[i], corners[(i + 1) % corners.Length]);
-                    var wall = Wall.Create(doc, curve, wallType.Id, ground.Id, height, 0.0, false, false);
+                    Wall wall;
+                    if (wallType is not null)
+                    {
+                        wall = Wall.Create(doc, curve, wallType.Id, ground.Id, height, 0.0, false, false);
+                    }
+                    else
+                    {
+                        wall = Wall.Create(doc, curve, ground.Id, false);
+                        var heightParam = wall.get_Parameter(BuiltInParameter.WALL_USER_HEIGHT_PARAM);
+                        if (heightParam is null || heightParam.IsReadOnly || !heightParam.Set(height))
+                            throw new InvalidDataException("ARCHON_DEFAULT_WALL_HEIGHT_NOT_SETTABLE");
+                    }
                     created.Add(wall);
                 }
 
@@ -139,6 +157,7 @@ public sealed class GeneratorHandler : IExternalDBApplication
             {
                 schemaVersion = 1,
                 pilot = "GENERATE_FOUR_WALLS",
+                sourceMode = "NEW_METRIC_PROJECT_NO_RVT_SEED",
                 revitVersion = doc.Application.VersionNumber,
                 widthMm = spec.WidthMm,
                 lengthMm = spec.LengthMm,

@@ -32,13 +32,12 @@ export function prepareNativeGeneratorPlan(namespace, discovery) {
     activity: {
       id: ACTIVITY,
       engine: ENGINE,
-      description: 'Generate four native Revit walls from an authorized seed',
+      description: 'Create a new metric Revit project and four native walls without an input RVT',
       appbundles: [namespace + '.' + APPBUNDLE + '+' + ALIAS],
       commandLine: [
-        '"$(engine.path)\\revitcoreconsole.exe" /i "$(args[inputRvt].path)" /al "$(appbundles[' + APPBUNDLE + '].path)"'
+        '"$(engine.path)\\revitcoreconsole.exe" /al "$(appbundles[' + APPBUNDLE + '].path)"'
       ],
       parameters: {
-        inputRvt: param('get', 'input.rvt'),
         geometry: param('get', 'archon-pilot-input.json'),
         outputRvt: param('put', 'pilot.rvt'),
         report: param('put', 'pilot-report.json')

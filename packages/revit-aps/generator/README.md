@@ -2,18 +2,19 @@
 
 This package compiles a separate Revit 2026 `IExternalDBApplication` that **would**
 produce a real `pilot.rvt` and `pilot-report.json` in an Autodesk Automation
-sandbox. It **has not run inside Revit and no RVT has been produced**.
+sandbox **without a seed model or desktop Revit**. It **has not run inside Revit and no RVT has been produced**.
 
 The draft does not call Autodesk APIs, register AppBundles or Activities,
 submit WorkItems, access customer models, or deploy to Railway production.
-Keep it in a separate GitHub draft branch until a valid seed and staging
-credentials are available.
+Keep it in a separate GitHub draft branch until isolated staging credentials
+and one real native Autodesk WorkItem have been verified.
 
 ## Fixed pilot contract
 
-Provide a legitimate Revit **2026** project seed with no walls, zero to two
-levels (only 0 and 3500 mm elevations), and at least one basic wall type.
-Do not use client data. Supply the accompanying tiny JSON input:
+The add-in calls `RevitApp.NewProjectDocument(UnitSystem.Metric)` on the
+Autodesk Revit 2026 engine. The Activity deliberately **omits the /i switch**;
+no external RVT, RTE, client model or SPARK desktop file is required.
+Supply only the accompanying tiny JSON input:
 
 ```json
 {
@@ -26,10 +27,11 @@ Do not use client data. Supply the accompanying tiny JSON input:
 ```
 
 The generator rejects unexpected JSON properties, oversized input,
-different dimensions, nonempty wall geometry, family documents, workshared
-models, unexpected levels, and preexisting output files. It executes one
-Revit transaction, creates exactly four native `Wall` elements on ground
-level and two `Level` elements at 0 and +3500 mm, saves `pilot.rvt`,
+different dimensions, unexpected nonempty geometry in the freshly created
+project, family/workshared documents, and preexisting output files. It executes one
+Revit transaction, normalizes the newly created metric project's levels,
+creates exactly four native `Wall` elements on ground level and two `Level`
+elements at 0 and +3500 mm, saves `pilot.rvt`,
 and emits a report containing SHA-256, element IDs and measured elevations.
 It sets `independentlyReopened=false`; reopening with a **separate**
 read-only WorkItem remains mandatory. A compiled DLL is not proof that
@@ -54,6 +56,8 @@ node packages/revit-aps/generator/prepare-generator-plan.mjs \
 ```
 
 This writes an offline proposal with `Autodesk.Revit+2026`, a separate
-AppBundle/Activity, input `GET` for RVT and JSON and output `PUT`
-for RVT and report. The plan includes single concurrency, no retries and
+AppBundle/Activity, input `GET` for JSON only and output `PUT`
+for RVT and report. There is no `/i` input model parameter. The plan includes single concurrency, no retries and
 `executionEnabled=false`. It does **not** authorize paid execution.
+
+Source for no-seed workflow: Autodesk APS blog **When working with NewProjectDocument by Automation API** and Revit 2026 API **Application.NewProjectDocument(UnitSystem)**. Native cloud execution is still pending.

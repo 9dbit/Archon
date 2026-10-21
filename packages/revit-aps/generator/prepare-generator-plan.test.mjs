@@ -10,18 +10,17 @@ const discovery = Object.freeze({
   revitEngines: ['Autodesk.Revit+2026']
 });
 
-test('generator plan has isolated Revit engine, input seed and JSON, native outputs',()=>{
+test('generator plan has isolated Revit engine, no seed RVT, JSON input and native outputs',()=>{
   const p=prepareNativeGeneratorPlan('archon_pilot',discovery);
   assert.equal(p.engine,'Autodesk.Revit+2026');
   assert.equal(p.appBundle.id,'ArchonRevitGeneratePilot');
   assert.deepEqual(Object.keys(p.activity.parameters),
-    ['inputRvt','geometry','outputRvt','report']);
-  assert.equal(p.activity.parameters.inputRvt.verb,'get');
+    ['geometry','outputRvt','report']);
   assert.equal(p.activity.parameters.geometry.verb,'get');
   assert.equal(p.activity.parameters.outputRvt.verb,'put');
   assert.equal(p.activity.parameters.report.verb,'put');
   assert.match(p.activity.commandLine[0],/revitcoreconsole\.exe/);
-  assert.match(p.activity.commandLine[0],/\/i "\$\(args\[inputRvt\]\.path\)"/);
+  assert.doesNotMatch(p.activity.commandLine[0],/ \/i /);
   assert.equal(p.activity.appbundles[0],'archon_pilot.ArchonRevitGeneratePilot+pilot_v1');
   assert.equal(p.executionEnabled,false);
   assert.equal(p.provisioningEnabled,false);
