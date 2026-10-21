@@ -2,6 +2,7 @@
 // Activity, AppBundle, upload, model-write, or execution code path.
 import { createServer } from 'node:http';
 import { discoverRevitAccess } from './discovery.mjs';
+import { auditRevitResources } from './audit-resources.mjs';
 
 const mode = process.env.ARCHON_REVIT_APS_WORKER_MODE ?? 'OFFLINE';
 const exitsAfterCheck = process.env.ARCHON_REVIT_APS_WORKER_EXIT === '1';
@@ -13,6 +14,10 @@ try {
   } else if (mode === 'DISCOVER') {
     const result = await discoverRevitAccess();
     status = { ...result, executionEnabled: false };
+    if (result.state !== 'VERIFIED') process.exitCode = 1;
+  } else if (mode === 'AUDIT') {
+    const result = await auditRevitResources();
+    status = { ...result, executionEnabled: false, provisioningEnabled: false, workitemsEnabled: false };
     if (result.state !== 'VERIFIED') process.exitCode = 1;
   } else {
     status = { state: 'FAILED', diagnostics: ['REVIT_WORKER_MODE_INVALID'], executionEnabled: false };

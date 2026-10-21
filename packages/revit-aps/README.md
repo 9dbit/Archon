@@ -16,7 +16,10 @@ OAuth v2 and GET Automation engines. The October 21 2026 test on SPARK returned
 by default; it makes no outbound requests and serves read-only `/health` and
 `/status`. `ARCHON_REVIT_APS_WORKER_MODE=DISCOVER` calls only OAuth and GET engines
 and requires **dedicated** `ARCHON_REVIT_APS_CLIENT_ID` and
-`ARCHON_REVIT_APS_CLIENT_SECRET`. It cannot provision resources or submit jobs.
+`ARCHON_REVIT_APS_CLIENT_SECRET`. `ARCHON_REVIT_APS_WORKER_MODE=AUDIT`
+performs an OAuth + GET-only inventory of the configured AppBundle/Activity
+and alias. Both modes are read-only. The worker cannot provision resources
+or submit jobs.
 
 Offline worker container validation:
 
