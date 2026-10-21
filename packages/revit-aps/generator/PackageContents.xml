@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApplicationPackage SchemaVersion="1.0" AppVersion="0.1.0" Name="ArchonRevitGeneratePilot" Description="ARCHON fixed-size native Revit generator, offline draft" Author="ARCHON">
+  <Components Description="ARCHON Revit 2026 four-wall native model generator">
+    <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2026" SeriesMax="R2026" />
+    <ComponentEntry AppName="ArchonRevitGeneratePilot" Version="0.1.0" ModuleName="./Contents/Archon.Revit.Generator.addin" AppDescription="Generate four native walls in sandbox" LoadOnCommandInvocation="False" LoadOnRevitStartup="True" />
+  </Components>
+</ApplicationPackage>

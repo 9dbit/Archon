@@ -1,0 +1,51 @@
+name: Revit Native Generator Draft (No WorkItems)
+
+on:
+  pull_request:
+    paths:
+      - 'packages/revit-aps/generator/**'
+      - '.github/workflows/revit-native-generator-draft.yml'
+  push:
+    branches:
+      - 'feature/revit-generator-*'
+    paths:
+      - 'packages/revit-aps/generator/**'
+      - '.github/workflows/revit-native-generator-draft.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  offline_contract:
+    name: Generator offline tests (no Autodesk)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Offline resource and guardrail tests
+        run: node --test packages/revit-aps/generator/*.test.mjs
+      - name: Bundle manifest and bridge guard tests
+        run: python3 -m unittest discover -s packages/revit-aps/generator -p 'test_*.py'
+
+  native_compile:
+    name: Compile Revit 2026 native generator (not executing it)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile generator against Revit 2026 API
+        run: dotnet build packages/revit-aps/generator/Archon.Revit.Generator.csproj -c Release
+      - name: Package isolated generator with DesignAutomationBridge
+        run: python packages/revit-aps/generator/package_generator.py packages/revit-aps/generator/bin/Release/net8.0-windows/Archon.Revit.Generator.dll
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archon-revit-native-generator-draft
+          path: packages/revit-aps/artifacts/ArchonRevitGeneratePilot.zip*
+          if-no-files-found: error
