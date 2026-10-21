@@ -1,0 +1,27 @@
+name: Revit APS Read-only Discovery Tests
+
+on:
+  pull_request:
+    paths:
+      - 'packages/revit-aps/**'
+      - '.github/workflows/revit-aps-readonly.yml'
+  push:
+    branches:
+      - 'feature/revit-aps-*'
+    paths:
+      - 'packages/revit-aps/**'
+      - '.github/workflows/revit-aps-readonly.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  discover_offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test Revit capability discovery without secrets or Autodesk access
+        run: node --test packages/revit-aps/discovery.test.mjs
