@@ -35,14 +35,17 @@ public sealed class PilotHandler : IExternalDBApplication
             if (doc is null || doc.IsFamilyDocument) throw new InvalidDataException("ARCHON_MODEL_INVALID");
             using var walls = new FilteredElementCollector(doc);
             using var levels = new FilteredElementCollector(doc);
+            var wallCount = walls.OfClass(typeof(Wall)).WhereElementIsNotElementType().ToElementIds().Count;
+            var levelCount = levels.OfClass(typeof(Level)).WhereElementIsNotElementType().ToElementIds().Count;
             var report = new
             {
                 schemaVersion = 1,
                 pilot = "READ_ONLY_METADATA",
                 modelTitle = doc.Title,
                 revitVersion = doc.Application.VersionNumber,
-                wallCount = walls.OfClass(typeof(Wall)).WhereElementIsNotElementType().ToElementIds().Count,
-                levelCount = levels.OfClass(typeof(Level)).WhereElementIsNotElementType().ToElementIds().Count,
+                wallCount,
+                levelCount,
+                geometry = PilotGeometryInspector.Inspect(doc, wallCount, levelCount),
                 modelModified = false,
                 approvalGranted = false,
                 reconciliation = "REPORT_ONLY",
