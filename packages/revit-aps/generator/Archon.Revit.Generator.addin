@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="DBApplication">
+    <Name>ARCHON Revit Generator Draft</Name>
+    <Assembly>.\Archon.Revit.Generator.dll</Assembly>
+    <AddInId>90d5f50e-329b-4181-972c-686409d00331</AddInId>
+    <FullClassName>Archon.Revit.Generator.GeneratorHandler</FullClassName>
+    <VendorId>ARCH</VendorId>
+    <VendorDescription>ARCHON, fixed-size sandbox native model pilot</VendorDescription>
+  </AddIn>
+</RevitAddIns>
