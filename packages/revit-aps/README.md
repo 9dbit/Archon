@@ -33,7 +33,10 @@ docker run --rm --network none -e ARCHON_REVIT_APS_WORKER_EXIT=1 archon-revit-in
 The `pilot` folder contains an `IExternalDBApplication` implementation,
 `.addin` manifest, and version-bound `PackageContents.xml`. The handler uses
 `DesignAutomationReadyEvent` and reads the Revit document's title and wall/level
-counts, writing `archon-revit-report.json` in the sandbox. It does **not**
+counts, writing `archon-revit-report.json` in the sandbox. The report also includes
+read-only wall line measurements, wall heights and level elevations for
+independent four-wall 12 m × 20 m pilot validation (±1 mm tolerance).
+It does **not**
 modify, save, or upload the input RVT.
 
 Windows CI compiles against Revit 2026/.NET 8 and packages a ZIP. Autodesk's

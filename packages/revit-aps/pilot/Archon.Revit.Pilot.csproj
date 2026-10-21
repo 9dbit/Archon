@@ -11,6 +11,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="PilotHandler.cs" />
+    <Compile Include="PilotGeometryInspector.cs" />
     <PackageReference Include="Autodesk.Forge.DesignAutomation.Revit" Version="2026.0.0"
                       GeneratePathProperty="true" ExcludeAssets="runtime" PrivateAssets="all" />
     <PackageReference Include="Revit_All_Main_Versions_API_x64" Version="2026.0.0"
