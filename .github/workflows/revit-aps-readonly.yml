@@ -26,6 +26,8 @@ jobs:
           node-version: '22'
       - name: Test discovery, worker guardrails and offline resource plan
         run: node --test packages/revit-aps/*.test.mjs
+      - name: Test fail-closed bundle layout and bridge inclusion
+        run: python3 -m unittest discover -s packages/revit-aps/pilot -p 'test_*.py'
       - name: Verify Revit worker container has no network dependency
         run: |
           docker build -f packages/revit-aps/worker.Dockerfile -t archon-revit-inspect .
@@ -44,7 +46,7 @@ jobs:
           python-version: '3.12'
       - name: Compile Revit 2026 API add-in, no native Revit execution
         run: dotnet build packages/revit-aps/pilot/Archon.Revit.Pilot.csproj -c Release
-      - name: Build local package and verify SHA256
+      - name: Build local package with required DesignAutomationBridge and verify SHA256
         run: python packages/revit-aps/pilot/package_pilot.py packages/revit-aps/pilot/bin/Release/net8.0-windows/Archon.Revit.Pilot.dll
       - uses: actions/upload-artifact@v4
         with:

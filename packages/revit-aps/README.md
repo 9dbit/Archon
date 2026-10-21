@@ -20,43 +20,42 @@ and requires **dedicated** `ARCHON_REVIT_APS_CLIENT_ID` and
 
 Offline worker container validation:
 
-```
+```sh
 docker build -f packages/revit-aps/worker.Dockerfile -t archon-revit-inspect .
 docker run --rm --network none -e ARCHON_REVIT_APS_WORKER_EXIT=1 archon-revit-inspect
 ```
 
-## Revit 2026 add-in, source only until native CI and later pilot
+## Revit 2026 add-in, native execution not yet verified
 
-The `pilot` folder contains a native `IExternalDBApplication` implementation,
+The `pilot` folder contains an `IExternalDBApplication` implementation,
 `.addin` manifest, and version-bound `PackageContents.xml`. The handler uses
-`DesignAutomationReadyEvent` and reads only the Revit document metadata and
-wall/level counts, writing `archon-revit-report.json` in the sandbox. It does
-**not** modify, save, or upload the input RVT. On an error it does not mark the
-Automation event successful. The add-in has not been run inside Revit yet.
+`DesignAutomationReadyEvent` and reads the Revit document's title and wall/level
+counts, writing `archon-revit-report.json` in the sandbox. It does **not**
+modify, save, or upload the input RVT.
 
-The manifest targets `Autodesk.Revit+2026`, with .NET 8 and version-bound
-Autodesk NuGet package references. A Windows CI runner compiles and packages
-an AppBundle ZIP; CI does not upload that ZIP to Autodesk.
+Windows CI compiles against Revit 2026/.NET 8 and packages a ZIP. Autodesk's
+`DesignAutomationBridge.dll` must be **next to `Archon.Revit.Pilot.dll`** within
+the bundle; the build copies it from the NuGet package, and the packager refuses
+to run if it is missing. Native `RevitAPI.dll` is provided by Autodesk's cloud
+Revit engine, not by ARCHON.
 
-To generate a **local-only** resource plan, obtain your APS app nickname from
-the Autodesk developer account, and provide a sanitized VERIFIED discovery JSON:
+Generate a **local-only** resource plan with the Autodesk Automation namespace
+and a sanitized VERIFIED discovery result:
 
-```
+```sh
 node packages/revit-aps/prepare-pilot.mjs MY_APS_NICKNAME /path/to/safe-discovery.json
 ```
 
-The resource plan is *not* an authorization to deploy or submit a WorkItem.
-It describes a possible future `GET` input RVT and `PUT` JSON report. There are
-no signed URLs or customer-model data in source control. A separate explicit
-review is required before provisioning any AppBundle/Activity or running a
-potentially billable WorkItem. Never paste secrets in chat or git.
+The resource plan is *not* authorization to deploy or submit a WorkItem.
+It describes future `GET` input RVT and `PUT` JSON report parameters,
+without signed URLs or customer data in source control. Separate review
+is required before provisioning AppBundle/Activity or running a billable WorkItem.
 
-## Tests
+## Offline tests
 
-```
+```sh
 node --test packages/revit-aps/*.test.mjs
+python3 -m unittest discover -s packages/revit-aps/pilot -p 'test_*.py'
 ```
 
-Sources: Autodesk APS official Revit add-in and Automation examples; their
-Revit bundle requires a `.addin` DBApplication manifest, not AutoCAD's DLL-only
-PackageContents format.
+References: Autodesk official Revit add-in and Automation documentation.
