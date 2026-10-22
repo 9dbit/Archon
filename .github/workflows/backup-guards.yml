@@ -1,0 +1,57 @@
+name: ARCHON backup guard checks
+
+on:
+  pull_request:
+    paths:
+      - 'ops/backup/**'
+      - '.github/workflows/backup-guards.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup-static-guards:
+    name: Backup scripts: syntax and deny-by-default
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse every backup shell script
+        shell: bash
+        run: bash -n ops/backup/export.sh ops/backup/verify.sh ops/backup/restore-scratch.sh
+
+      - name: Export refuses missing authorization and wrong Railway project
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if env -i PATH="$PATH" bash ops/backup/export.sh > "$RUNNER_TEMP/export.log" 2>&1; then
+            echo "Unarmed exporter ran unexpectedly"; exit 1
+          fi
+          grep -q "Export is not armed" "$RUNNER_TEMP/export.log"
+          if env -i PATH="$PATH" ARCHON_BACKUP_ARMED=I_ACKNOWLEDGE_READ_ONLY_EXPORT RAILWAY_PROJECT_ID=wrong bash ops/backup/export.sh > "$RUNNER_TEMP/project.log" 2>&1; then
+            echo "Exporter accepted wrong project"; exit 1
+          fi
+          grep -q "Wrong Railway project" "$RUNNER_TEMP/project.log"
+
+      - name: Restore refuses missing manual acknowledgment and Railway environment
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if env -i PATH="$PATH" bash ops/backup/restore-scratch.sh > "$RUNNER_TEMP/restore.log" 2>&1; then
+            echo "Unarmed restore ran unexpectedly"; exit 1
+          fi
+          grep -q "Manual restore acknowledgment missing" "$RUNNER_TEMP/restore.log"
+          if env -i PATH="$PATH" ARCHON_RESTORE_ACK=RESTORE_ONLY_TO_DISPOSABLE_ARCHON_DB RAILWAY_PROJECT_ID=railway bash ops/backup/restore-scratch.sh > "$RUNNER_TEMP/railway.log" 2>&1; then
+            echo "Restore ran on Railway"; exit 1
+          fi
+          grep -q "Cannot run restore on Railway" "$RUNNER_TEMP/railway.log"
+
+      - name: Verification refuses to run without object identifiers and private key
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if env -i PATH="$PATH" bash ops/backup/verify.sh > "$RUNNER_TEMP/verify.log" 2>&1; then
+            echo "Verification accepted missing settings"; exit 1
+          fi
+          grep -q "Missing required setting" "$RUNNER_TEMP/verify.log"
