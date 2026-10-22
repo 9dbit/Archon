@@ -96,3 +96,64 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
  .canonical-3d-status{max-width:calc(100% - 24px)}
  .canonical-3d-legend{flex-wrap:wrap}
 }
+
+
+/* Interactive mobile app chrome: fixed 5-item dock + full module drawer. */
+.mobile-brand-bar,.mobile-bottom-nav{display:none}
+.app-search-button{width:100%;cursor:pointer;text-align:left}
+.app-search-button span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.app-avatar-button{cursor:pointer;border:0;color:var(--text)}
+.topnav .nav-item{flex-shrink:0;text-decoration:none}
+.nav-item.active{text-decoration:none}
+.top-actions .icon-button{cursor:pointer}
+.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.mobile-overlay-layer{position:fixed;inset:0;z-index:150;display:flex;align-items:stretch;justify-content:flex-start}
+.mobile-overlay-backdrop{position:absolute;inset:0;background:rgba(0,7,12,.72);border:0;cursor:pointer;-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
+.mobile-overlay-panel{position:relative;z-index:1;display:flex;flex-direction:column;min-height:0;width:min(86vw,370px);max-height:100%;background:#0a1721;border-right:1px solid #2c414a;box-shadow:24px 0 80px rgba(0,0,0,.4);overflow:hidden;padding-top:env(safe-area-inset-top)}
+.mobile-dialog-panel{width:min(86vw,430px)}
+.mobile-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:25px 20px 16px;border-bottom:1px solid var(--line)}
+.mobile-dialog-head small{font-size:10px;letter-spacing:.13em;color:var(--accent)}
+.mobile-dialog-head h2{font-size:21px;margin:4px 0 0;font-weight:700}
+.mobile-dialog-close,.mobile-toolbar-button{display:grid;place-items:center;color:var(--text);border:1px solid var(--line);background:#12232e;border-radius:13px;width:44px;height:44px;flex-shrink:0;cursor:pointer}
+.mobile-dialog-close:hover,.mobile-toolbar-button:hover{border-color:var(--accent)}
+.mobile-drawer-links{display:flex;flex-direction:column;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:12px 12px calc(22px + env(safe-area-inset-bottom))}
+.mobile-drawer-link{display:grid;grid-template-columns:25px minmax(0,1fr) 20px;align-items:center;gap:12px;min-height:49px;padding:11px 15px;border-radius:13px;color:#d7e2e7;text-decoration:none;font-size:14px}
+.mobile-drawer-link:hover{background:#132733}
+.mobile-drawer-link.active{color:var(--accent);background:rgba(199,255,85,.09)}
+.mobile-drawer-link svg:last-child{opacity:.48}
+.mobile-search-body{display:flex;flex-direction:column;min-height:0;overflow:hidden;padding:16px 14px}
+.mobile-search-input{display:flex;align-items:center;gap:10px;padding:0 14px;height:48px;flex-shrink:0;border-radius:14px;border:1px solid #38515a;background:#101f2a;color:#91a6b0}
+.mobile-search-input input{font-size:16px;flex:1;min-width:0;color:var(--text);background:transparent;border:0;outline:none}
+.mobile-search-results{overflow:auto;overscroll-behavior:contain;min-height:0;margin-top:12px}
+.mobile-search-results a{display:grid;align-items:center;grid-template-columns:22px minmax(0,1fr) 18px;gap:12px;min-height:50px;padding:10px 12px;border-radius:11px;color:#dfebef;text-decoration:none}
+.mobile-search-results a:hover{background:#122834}
+.mobile-dialog-body{padding:24px 20px;display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+.mobile-dialog-body h3{font-size:17px;margin:6px 0 0}
+.mobile-dialog-body p,.mobile-dialog-note{color:var(--muted);font-size:13px;line-height:1.55;margin:0}
+.mobile-dialog-avatar{display:grid;place-items:center;border-radius:50%;width:52px;height:52px;background:#213641}
+.mobile-panel-action{display:inline-flex;align-items:center;gap:10px;margin-top:12px;min-height:44px;border-radius:99px;padding:9px 16px;background:rgba(199,255,85,.1);color:var(--accent);text-decoration:none;font-size:13px}
+@media(max-width:900px){
+ .topbar{position:sticky;top:0;height:auto;min-height:62px;display:block;z-index:80;padding-top:env(safe-area-inset-top);background:#07131b}
+ .topbar>.brand,.topbar>.topnav,.topbar>.top-actions{display:none!important}
+ .mobile-brand-bar{display:flex;align-items:center;gap:11px;width:100%;height:62px;padding:8px 12px;border-bottom:1px solid var(--line)}
+ .mobile-brand{display:inline-flex;align-items:center;min-width:0;gap:8px;color:var(--text);text-decoration:none;font-size:15px;letter-spacing:.12em}
+ .mobile-brand .brand-mark{font-size:28px}
+ .mobile-toolbar-actions{display:flex;align-items:center;gap:5px;margin-left:auto}
+ .mobile-toolbar-button{width:39px;height:39px;border:0;border-radius:12px;background:transparent}
+ .mobile-avatar-button{display:grid;place-items:center;flex:0 0 36px;width:36px;height:36px;border-radius:50%;background:#1b303c;border:0;color:var(--text);font-weight:700;font-size:13px}
+ .mobile-bottom-nav{position:fixed;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));left:0;right:0;bottom:0;z-index:85;min-height:64px;padding:7px max(8px,env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));border-top:1px solid #31434d;background:rgba(7,18,26,.97);backdrop-filter:blur(15px);-webkit-backdrop-filter:blur(15px)}
+ .mobile-bottom-link{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:4px;min-width:0;min-height:49px;color:#aabac4;font-size:10px;text-decoration:none;border:0;border-radius:12px;background:transparent;cursor:pointer}
+ .mobile-bottom-link span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .mobile-bottom-link.active{color:var(--accent);background:rgba(199,255,85,.08)}
+ .app-shell{padding-bottom:calc(73px + env(safe-area-inset-bottom));min-height:100dvh}
+ .workgrid{padding-bottom:16px}
+ .mobile-overlay-panel{max-height:100dvh}
+ .mobile-dialog-head{padding-top:16px}
+}
+@media(max-width:370px){
+ .mobile-brand-bar{gap:6px;padding:6px 8px}
+ .mobile-brand{font-size:12px;gap:5px}
+ .mobile-toolbar-actions{gap:0}
+ .mobile-toolbar-button{width:35px;height:39px}
+ .mobile-bottom-link{font-size:9px}
+}
