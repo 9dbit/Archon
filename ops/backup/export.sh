@@ -15,9 +15,8 @@ for variable in DATABASE_URL ARCHON_EXPECTED_DATABASE BACKUP_AGE_RECIPIENT S3_BU
 [[ -z "${S3_ENDPOINT_URL:-}" || "$S3_ENDPOINT_URL" == https://* ]] || abort "S3 endpoint must use HTTPS"
 
 # This setting applies read-only transactions to both preflight and pg_dump.
-export PGDATABASE="$DATABASE_URL"
 export PGOPTIONS="-c default_transaction_read_only=on"
-actual_db="$(psql -AtX -v ON_ERROR_STOP=1 -c 'SELECT current_database()')" || abort "Database preflight failed"
+actual_db="$(psql -d "$DATABASE_URL" -AtX -v ON_ERROR_STOP=1 -c 'SELECT current_database()')" || abort "Database preflight failed"
 [[ "$actual_db" == "$ARCHON_EXPECTED_DATABASE" ]] || abort "Database name mismatch"
 for command in pg_dump age aws sha256sum stat openssl; do command -v "$command" >/dev/null || abort "Missing binary: $command"; done
 
@@ -34,7 +33,7 @@ aws_flags=()
 [[ -z "${S3_ENDPOINT_URL:-}" ]] || aws_flags+=(--endpoint-url "$S3_ENDPOINT_URL")
 
 # Data is encrypted while streaming out of pg_dump. No plaintext dump is saved.
-pg_dump --format=custom --no-owner --no-acl --compress=6 | age -r "$BACKUP_AGE_RECIPIENT" -o "$archive"
+pg_dump --dbname="$DATABASE_URL" --format=custom --no-owner --no-acl --compress=6 | age -r "$BACKUP_AGE_RECIPIENT" -o "$archive"
 [[ -s "$archive" ]] || abort "Empty encrypted export"
 checksum="$(sha256sum "$archive" | cut -d ' ' -f 1)"
 printf '%s  %s\n' "$checksum" "$filename" > "$archive.sha256"
