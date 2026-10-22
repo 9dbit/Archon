@@ -1,0 +1,21 @@
+# ARCHON Render standby: independent from Railway build/deploy configuration.
+FROM node:22-bookworm-slim AS build
+WORKDIR /app
+RUN npm install --global pnpm@10.17.1
+COPY . .
+# Main branch intentionally has no committed pnpm-lock.yaml.
+RUN pnpm install --no-frozen-lockfile
+RUN pnpm --filter @archon/web build
+
+FROM node:22-bookworm-slim AS runner
+WORKDIR /app
+RUN npm install --global pnpm@10.17.1
+COPY --from=build /app /app
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV HOSTNAME=0.0.0.0
+ENV PORT=10000
+EXPOSE 10000
+# Render uses a separate database. Migrations are idempotent and gate startup.
+# Do not run any seed or use Railway's private database from this image.
+CMD ["sh", "-c", "if [ -n \"${DATABASE_URL:-}\" ]; then pnpm --filter @archon/db db:migrate || exit 1; else echo ARCHON_STANDBY_DATABASE_NOT_CONNECTED; fi; exec pnpm --filter @archon/web start"]

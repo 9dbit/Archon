@@ -10,6 +10,7 @@ export function createDatabase(databaseUrl: string) {
 }
 
 export { schema };
+export { checkArchonDatabaseReadiness } from './readiness';
 export * from './services';
 export * from './brief-service';
 export * from './sketchup-execution-package-service';
