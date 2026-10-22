@@ -157,3 +157,40 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
  .mobile-toolbar-button{width:35px;height:39px}
  .mobile-bottom-link{font-size:9px}
 }
+
+
+/* Assistant rail: working search, drafts, accessible tap targets */
+.assistant-panel .conversation-search input{flex:1;min-width:0;width:100%;height:100%;background:transparent;border:0;outline:none;color:var(--text);font-size:13px}
+.assistant-panel .conversation-search input::placeholder{color:var(--muted)}
+.assistant-panel .assistant-heading{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:6px;min-width:0}
+.assistant-panel .assistant-heading small{flex:0 0 100%}
+.assistant-panel .assistant-heading .online{font-size:10px}
+.assistant-panel .assistant-head .ghost{cursor:pointer;min-height:38px}
+.assistant-panel .conversation{cursor:pointer}
+.assistant-panel .conversation:hover{background:#122834}
+.assistant-panel .conversation span{min-width:0;overflow-wrap:anywhere}
+.assistant-panel .conversation b{font-size:11px;line-height:1.4}
+.assistant-panel .conversation small{font-size:10px;line-height:1.35}
+.assistant-panel .conversation-search{cursor:text}
+.assistant-panel .suggestions button{cursor:pointer;border-radius:8px;padding:8px 10px;min-height:35px}
+.assistant-panel .suggestions button:hover{background:#152a35;color:var(--accent)}
+.assistant-panel .composer{display:flex;min-width:0}
+.assistant-panel .composer input{font-size:13px;min-width:0}
+.assistant-panel .composer button{flex-shrink:0;cursor:pointer}
+.assistant-panel .composer button:disabled{opacity:.4;cursor:not-allowed}
+.assistant-panel .assistant-feedback,.assistant-panel .assistant-feedback-error{font-size:11px;line-height:1.5;padding:9px 10px;border-radius:9px;background:#10291e;color:#a8e9be}
+.assistant-panel .assistant-feedback-error{background:#301923;color:#ffb4b9}
+.assistant-panel .assistant-empty-search{font-size:12px;color:var(--muted);padding:12px 5px}
+.assistant-panel .tip a{color:var(--accent);text-underline-offset:3px}
+@media(max-width:900px){
+ .assistant-panel .assistant-head{align-items:center}
+ .assistant-panel .assistant-head .ghost{min-height:44px;border-radius:12px}
+ .assistant-panel .conversation-search{min-height:46px}
+ .assistant-panel .conversation-search input{font-size:16px}
+ .assistant-panel .conversation b{font-size:13px}
+ .assistant-panel .conversation small{font-size:11px}
+ .assistant-panel .conversation{min-height:57px;padding:12px 10px}
+ .assistant-panel .composer input{font-size:16px}
+ .assistant-panel .composer button{min-width:44px;min-height:44px}
+ .assistant-panel .suggestions button{min-height:44px;font-size:12px}
+}
