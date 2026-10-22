@@ -194,3 +194,35 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
  .assistant-panel .composer button{min-width:44px;min-height:44px}
  .assistant-panel .suggestions button{min-height:44px;font-size:12px}
 }
+
+
+/* Mobile navigation drawer. Main page stays in normal document flow. */
+.mobile-menu-toggle{display:none;align-items:center;gap:7px;min-height:44px;padding:0 12px;border:1px solid var(--line);border-radius:13px;background:#101f29;color:var(--text);font-size:13px;font-weight:700;cursor:pointer}
+.archon-search-trigger{cursor:pointer;text-align:left}
+.notification-holder{position:relative;flex:0 0 auto}
+.archon-notification-popup{position:absolute;right:0;top:calc(100% + 8px);z-index:45;width:min(280px,85vw);padding:15px;border-radius:12px;border:1px solid #314753;background:#10202b;color:var(--text);font-size:13px;box-shadow:0 16px 40px #0007}
+.archon-menu-layer{position:fixed;inset:0;z-index:1000;display:flex;justify-content:flex-end;isolation:isolate}
+.archon-menu-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.66);border:0;cursor:pointer}
+.archon-menu-drawer{position:relative;z-index:1;display:flex;flex-direction:column;gap:15px;width:min(380px,92vw);height:100%;max-height:100dvh;padding:calc(env(safe-area-inset-top) + 24px) 18px calc(env(safe-area-inset-bottom) + 18px);background:#08141d;border-left:1px solid #31404a;box-shadow:-14px 0 50px #0008;overflow:hidden}
+.archon-menu-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.archon-menu-heading strong{font-size:20px;letter-spacing:.08em}
+.archon-menu-heading strong span{font-size:13px;letter-spacing:0;color:var(--muted);font-weight:400}
+.archon-menu-heading button{display:grid;place-items:center;width:44px;height:44px;border:1px solid var(--line);border-radius:14px;background:#14232f;color:var(--text);cursor:pointer}
+.archon-menu-search{min-height:48px;display:flex;align-items:center;gap:9px;padding:0 14px;border:1px solid #30434d;background:#0e1d27;border-radius:13px;color:var(--muted)}
+.archon-menu-search input{flex:1;min-width:0;border:0;background:transparent;outline:0;color:var(--text);font-size:16px}
+.archon-menu-links{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:5px;padding-right:3px}
+.archon-menu-links a{display:flex;align-items:center;gap:13px;min-height:50px;padding:10px 13px;border-radius:12px;text-decoration:none;color:#d5e0e5;font-size:14px}
+.archon-menu-links a span{flex:1}
+.archon-menu-links a.active{background:#1d3227;color:var(--accent)}
+.archon-menu-links a:active{background:#223746}
+.archon-menu-links p{color:var(--muted);text-align:center;padding:20px}
+.archon-menu-footer{font-size:11px;color:#91a3ae;padding-top:9px;border-top:1px solid var(--line)}
+@media(max-width:900px){
+ .mobile-menu-toggle{display:flex;flex:0 0 auto}
+ .topbar .topnav{display:none}
+ .topbar .top-actions{order:0;min-height:62px}
+ .topbar .archon-search-trigger{flex:1;min-width:0}
+ .topbar .archon-search-trigger span{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .archon-menu-drawer{width:min(380px,92vw)}
+}
+@media(max-width:390px){.topbar .avatar{display:none}.mobile-menu-toggle span{display:none}.mobile-menu-toggle{padding:0;width:44px;justify-content:center}}
