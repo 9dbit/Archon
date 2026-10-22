@@ -18,4 +18,4 @@ ENV PORT=10000
 EXPOSE 10000
 # Render uses a separate database. Migrations are idempotent and gate startup.
 # Do not run any seed or use Railway's private database from this image.
-CMD ["sh", "-c", "pnpm --filter @archon/db db:migrate && exec pnpm --filter @archon/web start"]
+CMD ["sh", "-c", "if [ -n \"${DATABASE_URL:-}\" ]; then pnpm --filter @archon/db db:migrate || exit 1; else echo ARCHON_STANDBY_DATABASE_NOT_CONNECTED; fi; exec pnpm --filter @archon/web start"]
