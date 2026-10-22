@@ -29,3 +29,70 @@ button.geometry-diff-row{cursor:pointer}button.geometry-diff-row:focus-visible{o
 .autocad-review-manifest{margin-top:10px;padding:10px;border:1px solid rgba(157,255,0,.14);border-radius:8px;background:rgba(5,12,19,.42)}.autocad-review-manifest-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:8px}.autocad-review-manifest-head small{font-size:9px;letter-spacing:.08em;color:var(--accent)}.autocad-review-manifest-head span{font-size:10px;color:var(--muted)}.autocad-review-layer-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}.autocad-review-layer{display:grid;gap:3px;min-width:0;padding:7px;border:1px solid rgba(255,255,255,.08);border-radius:6px}.autocad-review-layer-name{overflow:hidden;text-overflow:ellipsis;font:9px ui-monospace,SFMono-Regular,monospace;color:var(--muted)}.autocad-review-layer b{font-size:10px}.autocad-review-layer em{font-style:normal;font-size:9px;letter-spacing:.06em}.autocad-review-layer em.matched{color:#89e86c}.autocad-review-layer em.review{color:#ffd166}.autocad-review-layer em.locked{color:#a8b4c2}.autocad-review-manifest-note{display:block;margin-top:8px;color:var(--muted);font-size:9px}@media(max-width:900px){.autocad-review-layer-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:560px){.autocad-review-manifest-head{align-items:flex-start;flex-direction:column}.autocad-review-layer-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 .autocad-review-binding{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:10px;padding:9px 10px;border:1px dashed rgba(255,209,102,.35);border-radius:8px;background:rgba(255,209,102,.04)}.autocad-review-binding>div:first-child{display:grid;gap:2px}.autocad-review-binding small{font-size:9px;letter-spacing:.08em;color:#ffd166}.autocad-review-binding b{font-size:11px;color:#ffd166}.autocad-review-binding span{font-size:9px;color:var(--muted);font-family:ui-monospace,SFMono-Regular,monospace}.autocad-review-binding-lock{display:flex;align-items:center;gap:5px;color:#ffd166!important;font-family:inherit!important;font-size:10px!important}.autocad-review-binding-lock span{font-family:inherit;color:#ffd166;font-size:10px}@media(max-width:560px){.autocad-review-binding{align-items:flex-start;flex-direction:column}.autocad-review-binding-lock{width:100%}}
+
+
+/* ARCHON Render mobile usability hotfix, October 2026 */
+html,body{width:100%;max-width:100%;overflow-x:hidden}
+button,a,input,textarea,select{touch-action:manipulation}
+button,a{ -webkit-tap-highlight-color:transparent }
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(max-width:900px){
+ .app-shell{width:100%;min-width:0;max-width:100vw;overflow-x:clip}
+ .topbar{height:auto;min-height:62px;display:flex;flex-wrap:wrap;align-items:center;position:sticky;top:0;z-index:40;padding-top:env(safe-area-inset-top);background:rgba(8,19,27,.96);backdrop-filter:blur(16px)}
+ .topnav{order:2;flex:0 0 100%;width:100%;min-width:0;max-width:100vw;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:none;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;border-top:1px solid var(--line)}
+ .topnav::-webkit-scrollbar{display:none}
+ .nav-item{flex:0 0 auto;min-width:78px;min-height:58px;padding:7px 12px;scroll-snap-align:start;gap:3px}
+ .nav-item span{font-size:11px;text-decoration:none}
+ .top-actions{order:1;flex:1 1 100%;min-width:0;min-height:54px;justify-content:flex-end;padding:6px 12px;border-left:0;gap:10px}
+ .top-actions .search{flex:1 1 auto;min-width:0;max-width:none;height:42px}
+ .top-actions .icon-button{flex:0 0 42px;width:42px;height:42px;border-radius:12px}
+ .top-actions .avatar{flex:0 0 40px;width:40px;height:40px}
+ .workgrid{display:flex;flex-direction:column;width:100%;height:auto;min-width:0;max-width:100vw;overflow:visible;padding:10px;gap:12px}
+ .assistant-panel,.workspace,.inspector{width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+ .workspace{order:1;min-height:550px;overflow:hidden}
+ .assistant-panel{order:2;display:flex;flex-direction:column;min-height:0;padding:14px;gap:8px}
+ .inspector{order:3;min-height:300px}
+ .assistant-head{flex-wrap:wrap}
+ .assistant-head>div{min-width:0}
+ .assistant-head .ghost{flex:0 0 auto}
+ .conversation-scroll{min-height:0;max-height:380px;overflow-y:auto;overflow-x:hidden}
+ .conversation{min-height:54px;grid-template-columns:22px minmax(0,1fr) auto;gap:9px;padding:10px 8px}
+ .conversation b,.conversation small{overflow-wrap:anywhere}
+ .conversation-search{flex:0 0 auto;min-height:44px}
+ .composer{min-height:52px;flex:0 0 auto}
+ .composer input{min-width:0;font-size:16px}
+ .suggestions button{font-size:12px;min-height:38px;text-align:left}
+ .workspace-head{gap:8px;flex-wrap:wrap}
+ .workspace-head>div{min-width:0}
+ .runtime-meta{flex-wrap:wrap}
+ .subtabs{max-width:100%;gap:8px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+ .subtabs button{min-height:44px;font-size:12px;flex-shrink:0}
+ .viewport-wrap,.layout-scroll{min-width:0;max-width:100%}
+ .cad-grid{min-width:0;min-height:480px;padding:30px 15px 45px;overflow-x:auto}
+ .floorplan{min-width:340px;min-height:340px}
+ .canonical-3d-shell{min-height:460px}
+ .version-explorer{min-width:0}
+ .version-detail{padding:12px;min-width:0}
+ .changeset-bar{flex-wrap:wrap}
+ .changeset-bar>div:first-child{flex:1 1 100%}
+ .changeset-bar button{min-height:44px}
+ .inspector-tabs{max-width:100%;overflow-x:auto}
+ .inspector-tabs button{min-height:44px;flex:0 0 auto;font-size:11px}
+ .inspector section{font-size:12px}
+ .design-alternative-grid,.command-samples{grid-template-columns:1fr}
+ .command-center{margin:8px;padding:10px;min-width:0}
+ .command-center-head{flex-wrap:wrap}
+ .command-compose textarea{min-width:0;font-size:16px}
+ .command-create,.command-compose button{min-height:44px}
+}
+@media(max-width:420px){
+ .top-actions{padding:6px 10px;gap:8px}
+ .top-actions .search{padding:0 10px}
+ .nav-item{min-width:74px}
+ .workgrid{padding:8px;gap:10px}
+ .assistant-panel{padding:10px}
+ .workspace-head{padding:10px}
+ .version-stats,.version-diff-grid{grid-template-columns:1fr}
+ .canonical-3d-status{max-width:calc(100% - 24px)}
+ .canonical-3d-legend{flex-wrap:wrap}
+}
