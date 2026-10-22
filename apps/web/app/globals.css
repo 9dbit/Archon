@@ -249,3 +249,37 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
  .execution-title small,.execution-step small{font-size:12px}
  .execution-title,.execution-step{grid-template-columns:21px minmax(0,1fr);gap:10px}
 }
+
+
+/* Assistant panel interaction and narrow phone typography guard. */
+.assistant-panel{min-width:0}
+.assistant-head strong,.execution-title b,.execution-step b{overflow-wrap:anywhere}
+.assistant-heading{min-width:0}
+.conversation-search input{width:100%;min-width:0;flex:1;border:0;outline:0;background:transparent;color:var(--text);font-size:14px}
+.conversation-search input::placeholder{color:var(--muted)}
+.execution-card,.execution-title,.execution-step{min-width:0}
+.execution-title,.execution-step{display:flex;gap:8px;align-items:flex-start}
+.execution-title>span,.execution-step>span{min-width:0;flex:1;display:block}
+.execution-title b,.execution-step b,.execution-title small,.execution-step small{display:block;line-height:1.5;white-space:normal;overflow-wrap:anywhere}
+.execution-title svg,.execution-step svg{flex-shrink:0;margin-top:2px}
+.execution-card{overflow-wrap:anywhere}
+.assistant-feedback,.assistant-feedback-error{font-size:12px;line-height:1.5;margin:8px 0;overflow-wrap:anywhere}
+.assistant-feedback{color:var(--accent)}
+.assistant-feedback-error{color:var(--danger)}
+.assistant-empty-search{padding:10px;color:var(--muted);font-size:12px}
+.assistant-panel .ghost,.assistant-panel .conversation,.assistant-panel .suggestions button{cursor:pointer}
+.assistant-panel .tip a{color:var(--accent);text-decoration:underline}
+@media(max-width:900px){
+ .assistant-panel .assistant-head{align-items:center}
+ .assistant-panel .assistant-head strong{font-size:16px}
+ .assistant-panel .online{display:block;margin-left:0;margin-top:4px}
+ .assistant-panel .assistant-head .ghost{min-height:44px;padding:8px 14px;border-radius:12px}
+ .assistant-panel .conversation-search{min-height:46px}
+ .assistant-panel .conversation b{font-size:13px}
+ .assistant-panel .conversation small{font-size:11px}
+ .assistant-panel .execution-card{font-size:12px;line-height:1.5}
+ .assistant-panel .composer{display:flex;gap:8px}
+ .assistant-panel .composer input{min-height:44px;font-size:16px}
+ .assistant-panel .composer button{min-width:44px;min-height:44px}
+ .assistant-panel .conversation-scroll{max-height:none;overflow:visible}
+}
