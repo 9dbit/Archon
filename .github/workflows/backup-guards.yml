@@ -47,6 +47,20 @@ jobs:
           fi
           grep -q "Cannot run restore on Railway" "$RUNNER_TEMP/railway.log"
 
+
+      - name: Build isolated PostgreSQL 18 backup image
+        shell: bash
+        run: docker build --file ops/backup/Dockerfile --tag archon-backup-qa:local .
+
+      - name: Container exporter must fail closed without any credentials
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if docker run --rm --network none archon-backup-qa:local > "$RUNNER_TEMP/container.log" 2>&1; then
+            echo "Unarmed backup container unexpectedly succeeded"; exit 1
+          fi
+          grep -q "Export is not armed" "$RUNNER_TEMP/container.log"
+
       - name: Verification refuses to run without object identifiers and private key
         shell: bash
         run: |
