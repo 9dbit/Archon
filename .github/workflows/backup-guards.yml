@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   backup-static-guards:
-    name: Backup scripts: syntax and deny-by-default
+    name: 'Backup scripts: syntax and deny-by-default'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
