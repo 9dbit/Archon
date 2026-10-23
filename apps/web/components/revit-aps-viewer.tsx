@@ -144,16 +144,16 @@ export function RevitApsViewer({ status }: { status: RevitViewerStatus | null })
         <h3>{phase === 'FAILED' ? 'The model could not be opened'
           : phase === 'LOADING' ? 'Opening Autodesk Viewer'
           : status?.state === 'TRANSLATION_PENDING' ? 'Preparing Revit viewable'
-          : 'Your native Revit model will appear here'}</h3>
+          : 'No translated RVT'}</h3>
         <p>{phase === 'FAILED' ? 'The RVT remains unchanged. Inspect the setup and try again.'
           : phase === 'LOADING' ? 'Loading the Autodesk-hosted translated model.'
           : status?.state === 'TRANSLATION_PENDING' ? 'The RVT must finish Autodesk Model Derivative translation before it can be viewed.'
-          : 'After one real Revit Automation job produces an RVT and Autodesk translates it, you can orbit, zoom, inspect and section the model right here.'}</p>
+          : 'Generate a native RVT through Revit Automation or attach an authorized model, then translate it with Autodesk Model Derivative.'}</p>
         {phase === 'FAILED' && <button type="button" className="rw-button rw-button-secondary" onClick={() => setRefreshKey(value => value + 1)}>Try again</button>}
         {error && <small className="rw-error-code">{error}</small>}
-        {!ready && <span className="rw-placeholder-tag">No simulated 3D geometry</span>}
+        {!ready && <span className="rw-placeholder-tag">No placeholder model</span>}
       </div>}
     </div>
-    <div className="rw-viewer-footer"><span><ShieldCheck size={15}/> Read-only model inspection</span><span>Orbit · Pan · Zoom · Section · Properties when model available</span></div>
+    <div className="rw-viewer-footer"><span><ShieldCheck size={15}/> Autodesk Viewer · read-only</span><span>Orbit · Pan · Zoom · Section · Properties when model available</span></div>
   </section>;
 }
