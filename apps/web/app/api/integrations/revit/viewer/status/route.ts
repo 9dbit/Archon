@@ -8,8 +8,12 @@ export function GET() {
   const credentialsConfigured = Boolean(process.env.ARCHON_REVIT_APS_CLIENT_ID?.trim() &&
     process.env.ARCHON_REVIT_APS_CLIENT_SECRET?.trim());
   const urnConfigured = Boolean(process.env.ARCHON_REVIT_VIEWER_URN?.trim());
+  // A public viewer-token endpoint is allowed only for a dedicated synthetic-only APS app.
+  // Real customer models require a future authenticated, user-scoped Viewer session.
+  const syntheticDemoOnly = process.env.ARCHON_REVIT_VIEWER_ACCESS_MODE === 'PUBLIC_SYNTHETIC_PILOT';
   const translationStatus = process.env.ARCHON_REVIT_VIEWER_TRANSLATION_STATUS?.trim().toUpperCase() || 'NOT_CONFIGURED';
   const missing = [
+    !syntheticDemoOnly ? 'Authenticated Revit viewer session (or isolated synthetic pilot)' : null,
     !viewerEnabled ? 'ARCHON_REVIT_VIEWER_ENABLED=true' : null,
     !credentialsConfigured ? 'Dedicated Revit APS Viewer credentials' : null,
     !urnConfigured ? 'ARCHON_REVIT_VIEWER_URN (translated RVT)' : null,
@@ -19,6 +23,7 @@ export function GET() {
 
   return NextResponse.json({
     state, viewerEnabled, credentialsConfigured, urnConfigured, translationStatus, missing,
+    accessMode: syntheticDemoOnly ? 'PUBLIC_SYNTHETIC_PILOT' : 'LOCKED_UNTIL_AUTH',
     nativeRvtOriginVerified: false, executionEnabled: false,
     diagnostics: state === 'READY'
       ? ['APS_VIEWER_CONFIGURED', 'READ_ONLY_VIEWER_SESSION_AVAILABLE']
