@@ -3,3 +3,8 @@ providers = ["node"]
 
 [variables]
 NIXPACKS_NODE_VERSION = "22"
+
+# The source repository currently has no pnpm-lock.yaml.
+# Force non-frozen installation in isolated Revit UI staging.
+[phases.install]
+cmds = ["pnpm install --no-frozen-lockfile"]
