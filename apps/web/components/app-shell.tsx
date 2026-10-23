@@ -25,11 +25,11 @@ export function AppShell({ children, active = 'revit' }: { children: ReactNode; 
     <header className="rw-header">
       <Link href="/workspace/revit" className="rw-logo" aria-label="ARCHON home">
         <span className="rw-logomark">A</span>
-        <span className="rw-wordmark">ARCHON<small>AI ARCHITECTURE</small></span>
+        <span className="rw-wordmark">ARCHON<small>BIM WORKSPACE</small></span>
       </Link>
       <nav className="rw-primary-nav" aria-label="Main navigation">
         <Link href="/workspace/revit" className={active === 'revit' ? 'rw-nav-link is-active' : 'rw-nav-link'}>
-          <Cuboid size={17}/> Revit Workspace
+          <Cuboid size={17}/> Revit
         </Link>
         <Link href="/workspace/integrations" className={active === 'integrations' ? 'rw-nav-link is-active' : 'rw-nav-link'}>
           <Settings2 size={17}/> Connections
@@ -38,7 +38,7 @@ export function AppShell({ children, active = 'revit' }: { children: ReactNode; 
       <div className="rw-header-actions">
         <button type="button" className="rw-advanced-toggle" onClick={() => setOpen(value => !value)}
           aria-expanded={open} aria-controls="rw-advanced-menu">
-          Other tools <ChevronDown size={15}/>
+          More <ChevronDown size={15}/>
         </button>
         <button type="button" className="rw-mobile-toggle" aria-label={open ? 'Close navigation' : 'Open navigation'}
           aria-expanded={open} aria-controls="rw-advanced-menu" onClick={() => setOpen(value => !value)}>
@@ -49,7 +49,7 @@ export function AppShell({ children, active = 'revit' }: { children: ReactNode; 
       {open && <div id="rw-advanced-menu" className="rw-advanced-menu" role="navigation" aria-label="Additional navigation">
         <Link href="/workspace/revit" onClick={() => setOpen(false)} className="rw-mobile-only">Revit Workspace</Link>
         <Link href="/workspace/integrations" onClick={() => setOpen(false)} className="rw-mobile-only">Connections</Link>
-        <p>Advanced / existing workflows</p>
+        <p>Legacy tools</p>
         {advanced.map(item => <Link key={item.href} href={item.href} onClick={() => setOpen(false)}>
           {item.label} <ArrowUpRight size={14}/>
         </Link>)}
