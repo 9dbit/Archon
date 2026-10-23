@@ -1,266 +1,343 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ArrowRight, Check, ChevronRight, Clock3, Cloud, Copy, DoorOpen,
-  FileText, Layers3, Loader2, PanelTop, PenLine, RefreshCw,
-  Ruler, ScanLine, Send, Settings2, ShieldCheck, Square, SquareStack
+  Activity, Check, ChevronDown, ClipboardList, Cloud, Copy, FileBox, FolderOpen,
+  Layers, LockKeyhole, Play, Plus, RefreshCw, Search, Settings2, ShieldCheck,
+  SlidersHorizontal, Terminal, Trash2, UploadCloud, WandSparkles
 } from 'lucide-react';
 import { RevitApsViewer, type RevitViewerStatus } from './revit-aps-viewer';
+import {
+  REVIT_TOOLS, PILOT_INSTRUCTION, defaultsForTool, instructionForTool,
+  validateRevitCommand,
+  type RevitDraft, type RevitParameters, type RevitTool, type RevitSource
+} from './revit-workflow-spec';
 
-type Project = {
-  id: string;
-  name: string;
-  status?: string;
-  buildingType?: string | null;
-  locationText?: string | null;
-};
+type Project = { id: string; name: string; status?: string; buildingType?: string | null; locationText?: string | null };
+type RevitStatus = { state: string; credentialsConfigured: boolean; nativeWorkItemVerified: boolean; executionEnabled: boolean; diagnostics: string[] };
+type Tab = 'model' | 'files' | 'jobs';
+type InspectorTab = 'properties' | 'plan' | 'system';
+type ConsoleEvent = { id: string; time: string; type: 'INFO' | 'READY' | 'BLOCKED' | 'ERROR'; message: string };
 
-type RevitStatus = {
-  state: string;
-  credentialsConfigured: boolean;
-  appBundleConfigured: boolean;
-  activityConfigured: boolean;
-  nativeWorkItemVerified: false;
-  pilotRvtVerified: false;
-  executionEnabled: false;
-  diagnostics: string[];
-};
-
-type Prepared = { project: string; instruction: string; requestedTool: string | null };
-const pilotCommand = 'Buat satu model uji Revit baru berukuran 12 x 20 meter dengan empat dinding perimeter setinggi 3,5 meter. Tambahkan level +0,00 dan +3,50 meter. Simpan sebagai pilot.rvt. Jangan menggunakan atau mengubah model proyek pelanggan.';
-
-const templates = [
-  { name: 'Wall', Icon: PenLine, detail: 'Dinding', prompt: 'Buat dinding Revit baru sepanjang 5 meter, tebal 150 mm, tinggi 3.500 mm pada Level 1. Tampilkan perubahan untuk review sebelum dieksekusi.' },
-  { name: 'Door', Icon: DoorOpen, detail: 'Pintu', prompt: 'Tambahkan pintu tipe single leaf lebar 900 mm dan tinggi 2.100 mm pada dinding terpilih. Verifikasi host wall terlebih dahulu.' },
-  { name: 'Window', Icon: Square, detail: 'Jendela', prompt: 'Tambahkan jendela lebar 1.200 mm, tinggi 1.200 mm, sill 900 mm pada dinding terpilih. Periksa host dan collision.' },
-  { name: 'Floor', Icon: PanelTop, detail: 'Pelat lantai', prompt: 'Buat floor slab berdasarkan batas tertutup pada Level 1. Tampilkan boundary, tipe dan tebal sebelum execution.' },
-  { name: 'Level', Icon: Layers3, detail: 'Elevasi lantai', prompt: 'Buat Level 2 pada elevasi +3.500 mm. Periksa level yang sudah ada agar tidak membuat duplikat.' },
-  { name: 'Measure', Icon: Ruler, detail: 'Ukur model', prompt: 'Baca model RVT dan laporkan panjang, lebar, tinggi dan area objek yang dipilih. Jangan mengubah model.' },
-  { name: 'Section', Icon: ScanLine, detail: 'Potongan', prompt: 'Siapkan section view bangunan melewati sumbu utama. Laporkan arah pandang dan crop region untuk review.' },
-  { name: 'Properties', Icon: SquareStack, detail: 'Parameter BIM', prompt: 'Baca kategori, family, type, dimensi dan parameter objek Revit yang dipilih. Mode hanya baca.' }
-];
-
-const suggestions = [
-  { title: 'Start with a test model', subtitle: '12 x 20 m / 4 walls / 2 levels', prompt: pilotCommand },
-  { title: 'Inspect an existing RVT', subtitle: 'Walls, floors, rooms and levels', prompt: 'Baca file RVT yang sudah tersedia di Autodesk Automation. Laporkan level, luas, jumlah wall, door, window, floor dan room. Jangan membuat atau mengubah objek apa pun.' },
-  { title: 'Boarding house brief', subtitle: 'Bukit Jarian / architecture', prompt: 'Untuk proyek Bukit Jarian, siapkan brief model BIM kos-kosan berdasarkan zoning yang disetujui. Pertahankan lantai dasar untuk parkir, 5 lantai hunian dan rooftop. Jangan menebak geometri atau menjalankan Revit sebelum dokumen acuan dan ukurannya diverifikasi.' }
-];
-
-function Step({ number, title, subtitle, active = false }: { number: string; title: string; subtitle: string; active?: boolean }) {
-  return <div className="rw-step">
-    <span className={active ? 'rw-step-number is-active' : 'rw-step-number'}>{number}</span>
-    <div><strong>{title}</strong><small>{subtitle}</small></div>
-  </div>;
-}
+const fmt = () => new Date().toLocaleTimeString('en-GB', { hour12: false });
+const initialEvent: ConsoleEvent = { id: 'init', time: '--:--:--', type: 'INFO', message: 'Workspace initialized. Native execution remains disabled.' };
+const toolGroups = [
+  { title: 'Model', ids: ['wall', 'door', 'window', 'floor', 'level'] },
+  { title: 'Review', ids: ['inspect', 'section'] }
+] as const;
 
 export function RevitWorkspace() {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [projectId, setProjectId] = useState('sandbox');
-  const [projectLoading, setProjectLoading] = useState(true);
-  const [projectError, setProjectError] = useState<string | null>(null);
-  const [revit, setRevit] = useState<RevitStatus | null>(null);
-  const [viewer, setViewer] = useState<RevitViewerStatus | null>(null);
-  const [statusError, setStatusError] = useState<string | null>(null);
-  const [statusLoading, setStatusLoading] = useState(false);
-  const [prompt, setPrompt] = useState(pilotCommand);
-  const [activeTool, setActiveTool] = useState<string | null>(null);
-  const [prepared, setPrepared] = useState<Prepared | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [draftError, setDraftError] = useState<string | null>(null);
+  const [projectId, setProjectId] = useState('pilot');
+  const [projectLoad, setProjectLoad] = useState('Loading projects');
+  const [viewerStatus, setViewerStatus] = useState<RevitViewerStatus | null>(null);
+  const [revitStatus, setRevitStatus] = useState<RevitStatus | null>(null);
+  const [statusLoad, setStatusLoad] = useState(false);
+  const [tool, setTool] = useState<RevitTool>('ai');
+  const [parameters, setParameters] = useState<RevitParameters>({});
+  const [prompt, setPrompt] = useState(PILOT_INSTRUCTION);
+  const [source, setSource] = useState<RevitSource>('pilot');
+  const [tab, setTab] = useState<Tab>('model');
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>('plan');
+  const [drafts, setDrafts] = useState<RevitDraft[]>([]);
+  const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
+  const [events, setEvents] = useState<ConsoleEvent[]>([initialEvent]);
+  const [consoleOpen, setConsoleOpen] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const [activeWorkflow, setActiveWorkflow] = useState<'setup' | 'draft' | 'review' | 'execute' | 'inspect'>('setup');
 
-  const selectedProject = useMemo(() => projects.find(project => project.id === projectId), [projects, projectId]);
-  const projectName = selectedProject?.name ?? 'Revit Sandbox Pilot';
+  const project = projects.find(item => item.id === projectId);
+  const projectName = project?.name ?? 'Sandbox Pilot';
+  const definition = REVIT_TOOLS.find(item => item.id === tool)!;
+  const selectedDraft = drafts.find(item => item.id === selectedDraftId) ?? null;
+  const currentInstruction = instructionForTool(tool, parameters, prompt);
+  const issues = useMemo(() => validateRevitCommand(tool, parameters, prompt), [tool, parameters, prompt]);
+  const nativeReady = revitStatus?.executionEnabled === true && revitStatus?.nativeWorkItemVerified === true;
+  const uploadedRvtAvailable = viewerStatus?.state === 'READY';
+  const modelAttached = source === 'project' && uploadedRvtAvailable;
+  const isPilot = source === 'pilot';
 
-  useEffect(() => {
-    let mounted = true;
-    const getProjects = async () => {
-      try {
-        const response = await fetch('/api/projects', { cache: 'no-store' });
-        if (!response.ok) throw new Error('PROJECT_LIST_UNAVAILABLE');
-        const body = await response.json() as { projects?: Project[] };
-        if (mounted) setProjects(Array.isArray(body.projects) ? body.projects : []);
-      } catch {
-        if (mounted) setProjectError('Project database unavailable. Sandbox drafting remains available.');
-      } finally {
-        if (mounted) setProjectLoading(false);
-      }
-    };
-    void getProjects();
-    return () => { mounted = false; };
+  const addEvent = useCallback((type: ConsoleEvent['type'], message: string) => {
+    setEvents(current => [{ id: String(Date.now()) + Math.random().toString(36).slice(2), time: fmt(), type, message }, ...current].slice(0, 30));
   }, []);
 
-  const refreshConnections = useCallback(async () => {
-    setStatusLoading(true);
-    setStatusError(null);
+  const refresh = useCallback(async () => {
+    setStatusLoad(true);
     try {
-      const [revitResponse, viewerResponse] = await Promise.all([
+      const [r, v] = await Promise.all([
         fetch('/api/integrations/revit/status', { cache: 'no-store' }),
         fetch('/api/integrations/revit/viewer/status', { cache: 'no-store' })
       ]);
-      if (!revitResponse.ok || !viewerResponse.ok) throw new Error('CONNECTION_STATUS_UNAVAILABLE');
-      setRevit(await revitResponse.json() as RevitStatus);
-      setViewer(await viewerResponse.json() as RevitViewerStatus);
+      if (!r.ok || !v.ok) throw new Error('STATUS_FETCH_FAILED');
+      const nextRevit = await r.json() as RevitStatus;
+      const nextViewer = await v.json() as RevitViewerStatus;
+      setRevitStatus(nextRevit);
+      setViewerStatus(nextViewer);
+      addEvent('INFO', 'Connection status refreshed. Revit: ' + nextRevit.state + ', Viewer: ' + nextViewer.state);
     } catch {
-      setStatusError('Could not check Autodesk integration readiness. No Revit job was submitted.');
+      addEvent('ERROR', 'Unable to retrieve Revit connection status.');
     } finally {
-      setStatusLoading(false);
+      setStatusLoad(false);
     }
-  }, []);
+  }, [addEvent]);
 
-  useEffect(() => { void refreshConnections(); }, [refreshConnections]);
+  useEffect(() => {
+    void refresh();
+    let alive = true;
+    void fetch('/api/projects', { cache: 'no-store' }).then(async response => {
+      if (!response.ok) throw new Error();
+      const json = await response.json() as { projects?: Project[] };
+      if (alive) { setProjects(Array.isArray(json.projects) ? json.projects : []); setProjectLoad(''); }
+    }).catch(() => { if (alive) setProjectLoad('Project database unavailable. Sandbox mode only.'); });
+    return () => { alive = false; };
+  }, [refresh]);
 
-  function chooseTool(name: string, template: string) {
-    setActiveTool(name);
-    setPrompt(template);
-    setPrepared(null);
-    setFeedback(null);
-    setDraftError(null);
-    document.getElementById('rw-command-input')?.focus();
+  function chooseTool(next: RevitTool) {
+    setTool(next);
+    setParameters(defaultsForTool(next));
+    if (next === 'ai') setPrompt(PILOT_INSTRUCTION);
+    setInspectorTab('plan');
+    setActiveWorkflow('draft');
+    addEvent('INFO', 'Tool selected: ' + next.toUpperCase());
   }
 
-  function updatePrompt(value: string) {
-    setPrompt(value);
-    setPrepared(null);
-    setFeedback(null);
-    setDraftError(null);
+  function createPlan() {
+    const errors = validateRevitCommand(tool, parameters, prompt);
+    if (errors.length) { addEvent('BLOCKED', 'Plan validation failed: ' + errors.join('; ')); return; }
+    const item: RevitDraft = {
+      id: String(Date.now()),
+      projectId, projectName,
+      source, sourceLabel: isPilot ? 'New isolated metric model' : source === 'local' ? 'Local RVT (not uploaded)' : 'Project RVT (not attached)',
+      localOnly: true, tool,
+      instruction: currentInstruction, parameters: { ...parameters },
+      createdAt: new Date().toISOString(), reviewed: false, validation: []
+    };
+    setDrafts(items => [item, ...items]);
+    setSelectedDraftId(item.id);
+    setActiveWorkflow('review');
+    setInspectorTab('plan');
+    addEvent('READY', 'Plan created locally: ' + definition.name + '. Review required; no Autodesk WorkItem submitted.');
   }
 
-  function prepareInstruction() {
-    const instruction = prompt.trim();
-    if (instruction.length < 12) {
-      setDraftError('Tuliskan instruksi yang lebih spesifik, minimal 12 karakter.');
-      return;
-    }
-    if (instruction.length > 3000) {
-      setDraftError('Instruksi terlalu panjang. Maksimum 3.000 karakter.');
-      return;
-    }
-    setPrepared({ project: projectName, instruction, requestedTool: activeTool });
-    setDraftError(null);
-    setFeedback('Instruction prepared locally. It has NOT been sent to Revit.');
+  function reviewSelected() {
+    if (!selectedDraft) return;
+    const errors = validateRevitCommand(selectedDraft.tool, selectedDraft.parameters,
+      selectedDraft.tool === 'ai' ? selectedDraft.instruction : '');
+    if (errors.length) { addEvent('BLOCKED', errors.join('; ')); return; }
+    setDrafts(all => all.map(item => item.id === selectedDraft.id ? { ...item, reviewed: true, validation: ['Field validation passed', 'Execution not available'] } : item));
+    setActiveWorkflow('execute');
+    addEvent('READY', 'Plan reviewed. No model modification. Native execution is still locked.');
   }
 
-  async function copyDraft() {
-    if (!prepared) return;
+  function clearPlan(id: string) {
+    setDrafts(all => all.filter(item => item.id !== id));
+    if (selectedDraftId === id) setSelectedDraftId(null);
+    setActiveWorkflow('draft');
+    addEvent('INFO', 'Draft removed from this session.');
+  }
+
+  async function copyPlan() {
+    if (!selectedDraft) return;
     try {
-      await navigator.clipboard.writeText('ARCHON | Revit command draft\nProject: ' + prepared.project +
-        '\nTool: ' + (prepared.requestedTool ?? 'AI command') + '\n\n' + prepared.instruction +
-        '\n\nExecution: NOT AUTHORIZED / NOT SUBMITTED');
-      setFeedback('Instruction copied. No model was changed.');
-    } catch {
-      setDraftError('Copy failed. You can still select and copy the instruction above.');
-    }
+      await navigator.clipboard.writeText(JSON.stringify({
+        project: selectedDraft.projectName, tool: selectedDraft.tool,
+        source: selectedDraft.sourceLabel, parameters: selectedDraft.parameters,
+        instruction: selectedDraft.instruction, state: 'LOCAL_DRAFT_NOT_EXECUTED'
+      }, null, 2));
+      setCopied(true);
+      addEvent('INFO', 'Plan copied to clipboard.');
+    } catch { addEvent('ERROR', 'Clipboard access denied by browser.'); }
   }
 
-  return <div className="rw-workspace">
-    <div className="rw-context-bar">
-      <div className="rw-context-heading">
-        <span className="rw-eyebrow">YOUR DESIGN WORKSPACE</span>
-        <h1>Design with Revit, <span>without the complexity.</span></h1>
-        <p>Write a design instruction, review it, then inspect native BIM in Autodesk Viewer when the cloud engine is ready.</p>
+  return <section className="rw-workspace rw-workspace-v2">
+    <div className="rw-workbar">
+      <div className="rw-workbar-project">
+        <div className="rw-workbar-logo"><FileBox size={18}/></div>
+        <div className="rw-project-field">
+          <label htmlFor="rw-project">Project</label>
+          <select id="rw-project" value={projectId} onChange={event => {
+            setProjectId(event.target.value);
+            setSource(event.target.value === 'pilot' ? 'pilot' : 'project');
+            setActiveWorkflow('setup');
+            addEvent('INFO', 'Project context changed. Existing drafts remain attached to their original project.');
+          }}>
+            <option value="pilot">Sandbox / Native Revit Pilot</option>
+            {projects.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}
+          </select>
+        </div>
+        <div className="rw-workbar-meta"><span>RVT {uploadedRvtAvailable ? 'configured' : 'not attached'}</span><span>Units: mm</span></div>
       </div>
-      <div className="rw-context-controls">
-        <label htmlFor="rw-project-select">Working project</label>
-        <select id="rw-project-select" value={projectId} onChange={event => {
-          setProjectId(event.target.value);
-          setPrepared(null);
-          setFeedback(null);
-        }} aria-label="Select ARCHON project">
-          <option value="sandbox">Revit Sandbox Pilot (test only)</option>
-          {projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}
-        </select>
-        {projectLoading ? <small>Loading projects...</small> : selectedProject
-          ? <small>{selectedProject.locationText ?? selectedProject.buildingType ?? 'ARCHON project'} · No RVT associated yet</small>
-          : <small>Safe, isolated draft workspace · no customer model attached</small>}
-        {projectError && <small className="rw-small-warning">{projectError}</small>}
+      <div className="rw-workbar-actions">
+        <span className="rw-workbar-runtime"><span className={nativeReady ? 'rw-signal on' : 'rw-signal'}/>{nativeReady ? 'Revit ready' : 'Revit offline'}</span>
+        <button className="rw-utility-button" type="button" onClick={() => void refresh()} disabled={statusLoad} title="Refresh integration status"><RefreshCw size={15}/><span>Refresh</span></button>
       </div>
     </div>
 
-    <div className="rw-main-grid">
-      <aside className="rw-control-pane" aria-label="Revit command center">
-        <section className="rw-pane-section rw-command-section">
-          <div className="rw-section-title"><span className="rw-number-label">01</span><div><h2>Command Center</h2><p>Describe what you want Revit to do.</p></div></div>
-          <div className="rw-suggestion-list">
-            {suggestions.map(item => <button type="button" key={item.title} className="rw-suggestion" onClick={() => {
-              setActiveTool(null);
-              updatePrompt(item.prompt);
-            }}>
-              <span><b>{item.title}</b><small>{item.subtitle}</small></span><ChevronRight size={16}/>
-            </button>)}
-          </div>
-          <label htmlFor="rw-command-input" className="rw-field-title">Your instruction</label>
-          <textarea id="rw-command-input" className="rw-command-input" rows={5} maxLength={3000}
-            value={prompt} onChange={event => updatePrompt(event.target.value)}
-            placeholder="Example: Create four perimeter walls, then add levels at 0 and +3500 mm..."/>
-          <div className="rw-command-meta"><span>{activeTool ? 'Manual tool / ' + activeTool : 'AI instruction / Draft'}</span><span>{prompt.length}/3000</span></div>
-          <button type="button" className="rw-button rw-button-primary rw-prepare" onClick={prepareInstruction}>
-            <Send size={16}/> Prepare instruction <ArrowRight size={16}/>
-          </button>
-          {draftError && <p className="rw-message rw-message-error" role="alert">{draftError}</p>}
-          {feedback && <p className="rw-message" role="status">{feedback}</p>}
-          {prepared && <div className="rw-prepared" role="region" aria-label="Prepared Revit instruction">
-            <div className="rw-prepared-header"><span><Check size={15}/> Instruction prepared</span><strong>NOT EXECUTED</strong></div>
-            <p>{prepared.instruction}</p>
-            <small>Project: {prepared.project}. Revit WorkItem submission is still locked.</small>
-            <button type="button" className="rw-button rw-button-secondary" onClick={() => void copyDraft()}><Copy size={15}/> Copy instruction</button>
-          </div>}
-        </section>
+    <nav className="rw-process-nav" aria-label="Revit workflow">
+      {([
+        ['setup', '01', 'Source'],
+        ['draft', '02', 'Build plan'],
+        ['review', '03', 'Validate'],
+        ['execute', '04', 'Execute'],
+        ['inspect', '05', 'Inspect RVT']
+      ] as const).map(([id, number, title]) =>
+        <button key={id} type="button" className={activeWorkflow === id ? 'active' : ''} onClick={() => setActiveWorkflow(id)}>
+          <span>{number}</span>{title}{id === 'execute' && !nativeReady && <LockKeyhole size={12}/>}
+        </button>)}
+    </nav>
 
-        <section className="rw-pane-section rw-tools-section">
-          <div className="rw-section-title"><span className="rw-number-label">02</span><div><h2>Manual BIM Tools</h2><p>Tap a tool to prepare its instruction.</p></div></div>
-          <div className="rw-tool-grid">
-            {templates.map(({ name, Icon, detail, prompt: template }) =>
-              <button type="button" key={name} className={activeTool === name ? 'rw-tool is-selected' : 'rw-tool'}
-                onClick={() => chooseTool(name, template)} aria-pressed={activeTool === name} title={'Prepare ' + name + ' command'}>
-                <Icon size={19} strokeWidth={1.6}/><strong>{name}</strong><small>{detail}</small>
-              </button>)}
+    <div className="rw-workbench">
+      <aside className="rw-left-pane" aria-label="Model tools">
+        <div className="rw-panel-header"><strong>Model operations</strong><small>{projectName}</small></div>
+        <div className="rw-left-scroll">
+          <div className="rw-pane-group">
+            <label className="rw-field-label" htmlFor="rw-model-source">Input source</label>
+            <select id="rw-model-source" value={source} onChange={event => { setSource(event.target.value as RevitSource); setActiveWorkflow('setup'); }}>
+              <option value="pilot">New sandbox model</option>
+              <option value="project">Project model</option>
+              <option value="local">Local .rvt file</option>
+            </select>
+            <p className="rw-inline-note">{source === 'pilot' ? 'New model. No customer files.' : source === 'local' ? 'Direct RVT upload is not connected. Select a project or use a sandbox.' : 'Requires an authorized RVT attachment. No model linked yet.'}</p>
           </div>
-          <p className="rw-tool-note"><ShieldCheck size={14}/> These tools prepare commands only. They do not edit Revit until a native adapter and approval flow are enabled.</p>
-        </section>
-      </aside>
-
-      <div className="rw-viewer-column">
-        <RevitApsViewer status={viewer}/>
-        <section className="rw-readiness" aria-label="Revit integration readiness">
-          <div className="rw-readiness-header">
-            <div><span className="rw-eyebrow">SYSTEM READINESS</span><h2>Cloud engine connection</h2></div>
-            <button type="button" className="rw-button rw-button-secondary rw-refresh" disabled={statusLoading}
-              onClick={() => void refreshConnections()}>
-              {statusLoading ? <Loader2 size={15} className="rw-spin"/> : <RefreshCw size={15}/>}
-              Refresh status
+          <div className="rw-pane-group">
+            <div className="rw-group-heading"><strong>AI</strong><small>Natural language</small></div>
+            <button type="button" className={tool === 'ai' ? 'rw-operation active' : 'rw-operation'} onClick={() => chooseTool('ai')}>
+              <WandSparkles size={17}/> Prompt command <ChevronDown size={14}/>
             </button>
           </div>
-          {statusError && <p className="rw-message rw-message-error" role="alert">{statusError}</p>}
-          <div className="rw-readiness-grid">
-            <div className="rw-readiness-item"><Cloud size={19}/>
-              <strong>Revit API</strong><span>{revit?.credentialsConfigured ? 'Credentials present, unverified' : 'Staging configuration pending'}</span>
+          {toolGroups.map(group => <div className="rw-pane-group" key={group.title}>
+            <div className="rw-group-heading"><strong>{group.title}</strong><small>{group.title === 'Model' ? 'BIM elements' : 'Read and views'}</small></div>
+            <div className="rw-operation-list">
+              {group.ids.map(id => { const item = REVIT_TOOLS.find(entry => entry.id === id)!;
+                return <button type="button" className={tool === id ? 'rw-operation active' : 'rw-operation'}
+                  key={id} onClick={() => chooseTool(id)} aria-pressed={tool === id}>
+                  <Layers size={16}/>{item.name}<span>{item.readOnly ? 'READ' : 'DRAFT'}</span>
+                </button>;
+              })}
             </div>
-            <div className="rw-readiness-item"><Clock3 size={19}/>
-              <strong>Native model generation</strong><span>Not run yet · no pilot.rvt verified</span>
-            </div>
-            <div className="rw-readiness-item"><FileText size={19}/>
-              <strong>Autodesk Viewer</strong><span>{viewer?.state === 'READY' ? 'Viewable configured' : 'Waiting for translated RVT'}</span>
+          </div>)}
+          <div className="rw-pane-group">
+            <div className="rw-group-heading"><strong>Model browser</strong><small>Autodesk RVT</small></div>
+            <div className="rw-tree">
+              <div><FolderOpen size={15}/>{projectName}</div>
+              <div className="rw-tree-child"><FileBox size={15}/>{modelAttached ? 'Configured Autodesk viewable' : 'No RVT file connected'}</div>
+              <div className="rw-tree-child"><Layers size={15}/> Levels <small>Unavailable</small></div>
+              <div className="rw-tree-child"><Layers size={15}/> Categories <small>Unavailable</small></div>
+              <div className="rw-tree-child"><Layers size={15}/> Views <small>Unavailable</small></div>
             </div>
           </div>
-          <div className="rw-connection-footnote">
-            <span>No production Autodesk jobs are launched by this UI.</span>
-            <Link href="/workspace/integrations">Existing connections <Settings2 size={14}/></Link>
+        </div>
+      </aside>
+
+      <main className="rw-stage-pane" aria-label="Project working area">
+        <div className="rw-stage-tabs">
+          <div className="rw-tab-list" role="tablist" aria-label="Workspace panels">
+            <button role="tab" aria-selected={tab === 'model'} className={tab === 'model' ? 'active' : ''} onClick={() => setTab('model')}><FileBox size={15}/> Viewer</button>
+            <button role="tab" aria-selected={tab === 'files'} className={tab === 'files' ? 'active' : ''} onClick={() => setTab('files')}><FolderOpen size={15}/> Files</button>
+            <button role="tab" aria-selected={tab === 'jobs'} className={tab === 'jobs' ? 'active' : ''} onClick={() => setTab('jobs')}><Activity size={15}/> Jobs <span>{drafts.length}</span></button>
           </div>
-        </section>
-        <section className="rw-workflow">
-          <div><span className="rw-eyebrow">SIMPLE PROCESS</span><h2>Four steps from idea to BIM</h2></div>
-          <div className="rw-steps">
-            <Step number="1" title="Describe" subtitle="Draft your instruction" active/>
-            <Step number="2" title="Review" subtitle="Approve a change plan"/>
-            <Step number="3" title="Run in Revit" subtitle="Cloud Automation WorkItem"/>
-            <Step number="4" title="Inspect" subtitle="Rotate the real RVT model"/>
+          <span className="rw-stage-mode">{tab === 'model' ? 'APS VIEWER · READ ONLY' : tab === 'files' ? 'FILE INVENTORY' : 'LOCAL QUEUE'}</span>
+        </div>
+        {tab === 'model' ? <RevitApsViewer status={viewerStatus}/> : tab === 'files' ?
+          <div className="rw-stage-empty">
+            <UploadCloud size={28}/><strong>Model files</strong>
+            <p>{source === 'pilot' ? 'No pilot.rvt has been generated.' : 'No native RVT is attached to this workspace.'}</p>
+            <div className="rw-file-row"><FileBox size={16}/> Current RVT <span>Not available</span></div>
+            <div className="rw-file-row"><FileBox size={16}/> SVF2 derivative <span>{uploadedRvtAvailable ? 'Configured' : 'Not available'}</span></div>
+            <small>Upload, version storage and Autodesk translation are pending. File controls do not transfer data yet.</small>
+          </div> :
+          <div className="rw-job-list">
+            <div className="rw-job-list-head">Local plans <span>{drafts.length} in this session</span></div>
+            {drafts.length ? drafts.map(item => <button type="button" key={item.id} className={selectedDraftId === item.id ? 'rw-job active' : 'rw-job'} onClick={() => { setSelectedDraftId(item.id); setInspectorTab('plan'); }}>
+              <ClipboardList size={17}/><span><strong>{item.tool.toUpperCase()} · {item.projectName}</strong><small>{new Date(item.createdAt).toLocaleString()} · {item.reviewed ? 'Reviewed' : 'Needs review'}</small></span><span>LOCAL</span>
+            </button>) : <div className="rw-stage-empty compact"><ClipboardList size={25}/><strong>No plans yet</strong><small>Choose a tool, define parameters and create a plan.</small></div>}
+          </div>}
+        <div className="rw-console">
+          <button type="button" className="rw-console-heading" onClick={() => setConsoleOpen(value => !value)} aria-expanded={consoleOpen}>
+            <span><Terminal size={15}/> Activity console <small>{events.length} entries</small></span><ChevronDown size={15}/>
+          </button>
+          {consoleOpen && <div className="rw-console-body" role="log" aria-label="Workspace activity">
+            {events.map(item => <div key={item.id}><time>{item.time}</time><span className={'rw-console-' + item.type.toLowerCase()}>{item.type}</span><span>{item.message}</span></div>)}
+          </div>}
+        </div>
+      </main>
+
+      <aside className="rw-right-pane" aria-label="Commands and properties">
+        <div className="rw-inspector-tabs" role="tablist" aria-label="Inspector tabs">
+          {([['properties','Parameters'],['plan','Command'],['system','Status']] as const).map(([id,title]) =>
+            <button key={id} type="button" role="tab" aria-selected={inspectorTab === id} className={inspectorTab === id ? 'active' : ''} onClick={() => setInspectorTab(id)}>{title}</button>)}
+        </div>
+        <div className="rw-right-scroll">
+          {inspectorTab === 'system' ? <div className="rw-inspector-section">
+            <strong>System connections</strong>
+            <div className="rw-status-grid">
+              <div>Revit credentials <span>{revitStatus?.credentialsConfigured ? 'Present, not verified' : 'Not configured'}</span></div>
+              <div>Native WorkItems <span>Not verified</span></div>
+              <div>RVT generation <span>Pending</span></div>
+              <div>Model derivative <span>{viewerStatus?.translationStatus ?? 'Checking'}</span></div>
+              <div>APS Viewer <span>{viewerStatus?.state ?? 'Checking'}</span></div>
+              <div>Write API <span>Locked</span></div>
+            </div>
+            <button type="button" className="rw-button rw-button-secondary" disabled={statusLoad} onClick={() => void refresh()}><RefreshCw size={15}/> Refresh</button>
+          </div> : inspectorTab === 'properties' ? <div className="rw-inspector-section">
+            <strong>{definition.name} parameters</strong>
+            <p>{definition.description}</p>
+            {definition.fields.length ? <div className="rw-parameter-grid">
+              {definition.fields.map(field => <label key={field.key} className="rw-parameter-field">
+                <span>{field.label} {field.unit && <small>{field.unit}</small>}</span>
+                <input type={field.kind === 'number' ? 'number' : 'text'} value={parameters[field.key] ?? ''}
+                  step={field.kind === 'number' ? 'any' : undefined}
+                  onChange={event => setParameters(current => ({ ...current, [field.key]: event.target.value }))}/>
+              </label>)}
+            </div> : <p>Use the Command tab to enter a natural language instruction.</p>}
+            {issues.length > 0 && <div role="alert" className="rw-validation-errors">{issues.map(e => <div key={e}>{e}</div>)}</div>}
+            <button type="button" className="rw-button rw-button-primary rw-wide" disabled={issues.length > 0} onClick={createPlan}><Plus size={15}/> Create plan</button>
+          </div> : <div className="rw-inspector-section">
+            <strong>Command editor</strong>
+            <div className="rw-brief-line">Tool <b>{definition.name}</b></div>
+            <div className="rw-brief-line">Source <b>{source === 'pilot' ? 'New sandbox RVT' : source === 'local' ? 'Local file not uploaded' : 'Project RVT pending'}</b></div>
+            {tool === 'ai' ? <label className="rw-field-label" htmlFor="rw-command">Instruction
+              <textarea id="rw-command" rows={7} value={prompt} maxLength={3000} onChange={event => setPrompt(event.target.value)} placeholder="Describe a Revit operation..."/>
+            </label> : <div>
+              <p className="rw-inspector-help">Structured BIM tool. Edit parameters under the Parameters tab. The generated instruction is shown below.</p>
+              <div className="rw-preview-text">{currentInstruction}</div>
+              <button type="button" className="rw-inline-button" onClick={() => setInspectorTab('properties')}><SlidersHorizontal size={14}/> Edit parameters</button>
+            </div>}
+            {issues.length > 0 && <div role="alert" className="rw-validation-errors">{issues.map(e => <div key={e}>{e}</div>)}</div>}
+            <button type="button" className="rw-button rw-button-primary rw-wide" disabled={issues.length > 0} onClick={createPlan}><Plus size={15}/> Create plan</button>
+          </div>}
+          <div className="rw-inspector-section rw-plan-section">
+            <div className="rw-section-row"><strong>Plan review</strong><span>{selectedDraft ? (selectedDraft.reviewed ? 'REVIEWED' : 'DRAFT') : 'EMPTY'}</span></div>
+            {selectedDraft ? <>
+              <div className="rw-brief-line">Project <b>{selectedDraft.projectName}</b></div>
+              <div className="rw-brief-line">Tool <b>{selectedDraft.tool}</b></div>
+              <div className="rw-brief-line">Origin <b>{selectedDraft.sourceLabel}</b></div>
+              <div className="rw-preview-text">{selectedDraft.instruction}</div>
+              <div className="rw-plan-actions">
+                <button type="button" className="rw-button rw-button-secondary" onClick={() => void copyPlan()}>{copied ? <Check size={14}/> : <Copy size={14}/>} Copy</button>
+                <button type="button" className="rw-button rw-button-secondary" onClick={() => clearPlan(selectedDraft.id)}><Trash2 size={14}/> Remove</button>
+              </div>
+              <button type="button" className="rw-button rw-button-primary rw-wide" disabled={selectedDraft.reviewed} onClick={reviewSelected}><ShieldCheck size={15}/> {selectedDraft.reviewed ? 'Reviewed' : 'Validate & review'}</button>
+            </> : <p>No active plan. Choose a tool and create one.</p>}
           </div>
-          <p>The last three stages require the native APS integration. The Revit generator remains in <Link href="https://github.com/9dbit/Archon/pull/93" target="_blank">Draft PR #93</Link>; no native RVT has been produced by the current production integration.</p>
-        </section>
-      </div>
+          <div className="rw-inspector-section rw-execution">
+            <div className="rw-section-row"><strong>Revit execution</strong><LockKeyhole size={15}/></div>
+            <div className="rw-status-grid">
+              <div>Plan validated <span>{selectedDraft?.reviewed ? 'Yes' : 'No'}</span></div>
+              <div>Native adapter <span>{nativeReady ? 'Verified' : 'Unverified'}</span></div>
+              <div>Execution gate <span>Closed</span></div>
+            </div>
+            <button type="button" className="rw-button rw-wide rw-execute-button" disabled title="Native Revit WorkItem submission is not connected in this staging UI"><Play size={15}/> Run in Revit</button>
+            <p>Locked until native generation, provenance checks and the approved WorkItem workflow are integrated. No changes sent to Autodesk.</p>
+          </div>
+        </div>
+      </aside>
     </div>
-    <footer className="rw-footer"><span>ARCHON <span className="rw-muted">/ Native BIM control plane</span></span><span>Draft first. Verify before execution. Original files protected.</span></footer>
-  </div>;
+    <footer className="rw-operational-footer">
+      <span><span className={nativeReady ? 'rw-signal on' : 'rw-signal'}/> Revit {nativeReady ? 'available' : 'not connected'}</span>
+      <span>Model: {uploadedRvtAvailable ? 'viewable configured' : 'no translated RVT'}</span>
+      <span>Drafts: {drafts.length}</span>
+      <span>Session only · No changes committed</span>
+    </footer>
+  </section>;
 }
