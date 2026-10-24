@@ -1,4 +1,4 @@
-# ARCHON Reference Image to 3D, V0.1 (Preview-Only)
+# ARCHON Reference Image to 3D, V0.1 (Guarded Sandbox)
 
 ## Scope and current state
 
@@ -6,7 +6,7 @@ Implemented on feature/reference-image-to-3d-20261024 as an isolated SketchUp co
 The endpoint accepts a local JPEG/PNG/WebP image and explicit width/depth (3-50m each).
 It calls the OpenAI Responses API with a strict structured output schema and store:false,
 then validates and returns a conceptual, reviewed JSON massing plan.
-**No native SketchUp geometry changes, .skp export, Revit generation, or production changes are enabled.**
+**The main ARCHON executor remains read-only.** An optional standalone ARCHON Concept Sandbox RBZ can generate grouped, editable SketchUp massing **only in a blank, unsaved model, with explicit confirmation**. It cannot update an existing model or auto-save an .skp. Revit and production editing are not part of this slice.
 
 ## Privacy and security
 
@@ -42,7 +42,7 @@ execution.mode=PREVIEW_ONLY; execution.sketchUpMutationEnabled=false.
 The existing ARCHON Railway production service tracks main. Do not merge until tests, preview review and explicit approval.
 The ARCHON Revit UI Staging service tracks a different feature branch and must not be repointed.
 Deploy the new feature branch to an isolated staging service only when needed, with VISION_ENABLED=false initially.
-The existing Ruby executor's APPROVE_SKETCHUP_EXECUTOR gate stays hard locked.
+The existing Ruby executor's APPROVE_SKETCHUP_EXECUTOR gate stays hard locked. The standalone sandbox uses a completely separate local extension and accepts only empty, unsaved SketchUp models. It never modifies an existing project file.
 
 ## Hardware safety
 
@@ -55,6 +55,7 @@ SketchUp 2026 installation and verification will occur after the user confirms i
 2. Authenticated cloud preview endpoint (this slice).
 3. SketchUp extension image picker, dimensional input, JSON export (this slice).
 4. Isolated staging health/security tests and optional provider test with explicit API key.
-5. Manual in-app SketchUp 2026 smoke test; compare generated model to reference.
-6. Explicitly approved sandbox geometry path and .skp preservation/reconciliation in a separate gate.
-7. Iterative visual quality checks and 3D refinement.
+5. Optional ARCHON Concept Sandbox RBZ generator: guarded blank-model create from reviewed JSON (code and CI only).
+6. Manual in-app SketchUp 2026 smoke test; compare generated editable massing with reference and manually save an .skp.
+7. Governed, versioned change sets for existing models remain a separate future approval gate.
+8. Iterative visual quality checks and 3D refinement.
