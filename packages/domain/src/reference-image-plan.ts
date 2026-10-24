@@ -106,12 +106,16 @@ export function validateReferencePlan(plan: unknown): string[] {
 
 export function lockReferenceDimensions(plan: ReferencePlan, widthM: number, depthM: number): ReferencePlan {
   if (!range(widthM, 3, 50) || !range(depthM, 3, 50)) throw new Error('FOOTPRINT_OUT_OF_RANGE');
+  const maxGlazing = Math.min(0.85, 1 - 2 * (plan.building.wall_thickness + 0.051) / widthM);
+  const adjustedRatio = Math.min(plan.facade.glazing_ratio, maxGlazing);
   const assumptions = [
-    ...plan.assumptions.filter(x => x !== 'Footprint dimensions are provided by the user (not recovered from the image).').slice(0, 19),
+    ...plan.assumptions.filter(x => x !== 'Footprint dimensions are provided by the user (not recovered from the image).').slice(0, 18),
+    ...(adjustedRatio < plan.facade.glazing_ratio ? ['Glazing ratio reduced to retain minimum front-wall piers.'] : []),
     'Footprint dimensions are provided by the user (not recovered from the image).'
   ];
   return {
     ...plan,
+    facade: { ...plan.facade, glazing_ratio: adjustedRatio },
     building: { ...plan.building, width: widthM, depth: depthM },
     assumptions
   };
