@@ -8,6 +8,7 @@ require_relative 'manifest'
 require_relative 'client'
 require_relative 'executor'
 require_relative 'dialog'
+require_relative 'reference_image'
 
 module Archon
   module Main

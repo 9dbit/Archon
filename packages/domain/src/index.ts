@@ -101,3 +101,5 @@ export * from './prompt-layout';
 export * from './drawing-ir';
 export * from './execution-package';
 export * from './sketchup-executor-plan';
+
+export * from './reference-image-plan';

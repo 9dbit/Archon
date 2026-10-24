@@ -85,3 +85,9 @@ Before broad distribution, move to per-device credentials with revocation/rotati
 - scene/section generation;
 - LayOut sheet generation;
 - external publishing/sync.
+
+## Reference image concept preview (feature branch)
+
+From Extensions select **ARCHON Image to 3D Concept (Preview)**, choose a JPEG/PNG/WebP (up to 5 MB), and enter **known** width/depth (3-50m). After confirming image transfer to OpenAI, ARCHON returns a conceptual JSON plan and asks where to save it. It never overwrites files or changes SketchUp geometry. This feature requires the Railway preview endpoint to be enabled and authenticated. The existing executor remains locked.
+
+See docs/ARCHON_REFERENCE_IMAGE_TO_3D_V01.md for configuration and constraints.

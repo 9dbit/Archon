@@ -1,0 +1,57 @@
+name: ARCHON Reference Image Preview CI
+
+on:
+  pull_request:
+    paths:
+      - 'packages/domain/src/reference-image-plan*'
+      - 'packages/domain/src/index.ts'
+      - 'apps/web/app/api/integrations/sketchup/reference-image/**'
+      - 'sketchup-extension/archon/reference_image.rb'
+      - 'sketchup-extension/archon/main.rb'
+      - 'docs/ARCHON_REFERENCE_IMAGE_TO_3D_V01.md'
+      - '.github/workflows/reference-image-preview.yml'
+  push:
+    branches:
+      - 'feature/reference-image-to-3d-20261024'
+    paths:
+      - 'packages/domain/src/reference-image-plan*'
+      - 'packages/domain/src/index.ts'
+      - 'apps/web/app/api/integrations/sketchup/reference-image/**'
+      - 'sketchup-extension/archon/reference_image.rb'
+      - 'sketchup-extension/archon/main.rb'
+      - '.github/workflows/reference-image-preview.yml'
+
+jobs:
+  verify-reference-plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+      - run: pnpm install --no-frozen-lockfile
+      - name: Validate pure reference-image plan contract
+        run: node --experimental-transform-types --test packages/domain/src/reference-image-plan.test.mjs
+      - name: Validate Ruby extension syntax
+        run: find sketchup-extension -type f -name '*.rb' -print0 | xargs -0 -n1 ruby -c
+      - name: Preserve existing executor mutation lock
+        run: node --test sketchup-extension/executor-lock.test.mjs
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Build cloud application
+        run: pnpm build
+      - name: Package ARCHON SketchUp RBZ candidate
+        run: |
+          cd sketchup-extension
+          zip -qr ../ARCHON-SketchUp-Preview.rbz archon.rb archon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archon-sketchup-reference-preview-rbz
+          path: ARCHON-SketchUp-Preview.rbz
+          if-no-files-found: error
