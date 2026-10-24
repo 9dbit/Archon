@@ -1,0 +1,38 @@
+name: ARCHON Concept Sandbox CI
+
+on:
+  pull_request:
+    paths:
+      - 'sketchup-concept-sandbox/**'
+      - '.github/workflows/concept-sandbox.yml'
+  push:
+    branches:
+      - 'feature/reference-image-to-3d-20261024'
+    paths:
+      - 'sketchup-concept-sandbox/**'
+      - '.github/workflows/concept-sandbox.yml'
+
+jobs:
+  verify-and-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Ruby syntax
+        run: find sketchup-concept-sandbox -type f -name '*.rb' -print0 | xargs -0 -n1 ruby -c
+      - name: Guardrail tests
+        run: node --test sketchup-concept-sandbox/safety.test.mjs
+      - name: Build RBZ
+        run: |
+          cd sketchup-concept-sandbox
+          zip -qr ../ARCHON-Concept-Sandbox.rbz ARCHONConceptSandbox.rb archon_concept_sandbox
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archon-concept-sandbox-rbz
+          path: ARCHON-Concept-Sandbox.rbz
+          if-no-files-found: error

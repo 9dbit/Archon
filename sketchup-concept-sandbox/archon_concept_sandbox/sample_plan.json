@@ -1,0 +1,33 @@
+{
+  "version": "0.1",
+  "project_name": "Sample Tropical Villa",
+  "units": "m",
+  "building": {
+    "width": 12,
+    "depth": 16,
+    "floors": 2,
+    "floor_height": 3.4,
+    "wall_thickness": 0.2,
+    "roof_type": "flat",
+    "roof_overhang": 0.5
+  },
+  "facade": {
+    "glazing_ratio": 0.52,
+    "balcony": true,
+    "balcony_depth": 1.3,
+    "vertical_fins": 5
+  },
+  "materials": {
+    "walls": "#D9D0BF",
+    "slab": "#AAB0B0",
+    "roof": "#35383B",
+    "glass": "#7DAFCB",
+    "timber": "#886448"
+  },
+  "assumptions": [
+    "Front facade and massing are conceptual estimates"
+  ],
+  "unknowns": [
+    "Unknown interior, structure, rear elevation and accurate sizes"
+  ]
+}
